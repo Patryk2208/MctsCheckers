@@ -24,6 +24,9 @@ include(FetchContent)
 
 set(SOURCES
         src/main.cpp
+        src/tocpuwb/mcts.cpp
+        src/tocpuwb/batchQueue.cpp
+        src/tocpuwb/batchExecutor.cu
 )
 
 add_executable(MCTS ${SOURCES})

@@ -4,7 +4,7 @@
 #ifndef MCTS_CHECKERS_DEVICETREE_HPP
 #define MCTS_CHECKERS_DEVICETREE_HPP
 
-#include "deviceTree.cuh"
+#include "kernels.cuh"
 
 /**
  * A struct representing a tree in a concise buffer on a gpu that supports parallel insertion of nodes
