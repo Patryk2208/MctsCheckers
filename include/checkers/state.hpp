@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <vector>
 
+#define FIELD_COUNT 32
+
 enum Players {
     WhitePlayer,
     BlackPlayer
