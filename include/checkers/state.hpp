@@ -9,8 +9,8 @@
 #include <vector>
 
 enum Players {
-    PlayerA,
-    PlayerB
+    WhitePlayer,
+    BlackPlayer
 };
 
 using BoardMap = uint32_t;
