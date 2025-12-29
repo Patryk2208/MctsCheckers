@@ -10,13 +10,13 @@
 
 #define FIELD_COUNT 32
 
-enum Players {
+enum Players : unsigned {
     WhitePlayer,
     BlackPlayer
 };
 
-using BoardMap = uint32_t;
-using BoardMapMetadata = uint32_t;
+using BoardMap = unsigned;
+using BoardMapMetadata = unsigned;
 
 struct CheckersState {
     BoardMap whitePawns_;

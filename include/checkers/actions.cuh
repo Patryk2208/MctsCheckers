@@ -57,15 +57,45 @@ struct ResultLegalActionSpace {
  */
 __global__ void GetLegalActions(BatchSoACheckersState& states, int batchSize); //todo output format for this function
 
-__device__ unsigned int GetTopLeftId(unsigned int fieldId);
-__device__ unsigned int GetTopRightId(unsigned int fieldId);
-__device__ unsigned int GetBottomLeftId(unsigned int fieldId);
-__device__ unsigned int GetBottomRightId(unsigned int fieldId);
+__device__ void GetLegalQueenTakeMoves(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace,
+    Players player);
 
-__device__ Mask GetTopLeftMask(unsigned int fieldId);
-__device__ Mask GetTopRightMask(unsigned int fieldId);
-__device__ Mask GetBottomLeftMask(unsigned int fieldId);
-__device__ Mask GetBottomRightMask(unsigned int fieldId);
+__device__ void GetLegalPawnTakeMoves(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace,
+    Players player);
+
+__device__ void GetLegalQueenNormalMoves(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace,
+    Players player);
+
+__device__ void GetLegalPawnNormalMoves(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace,
+    Players player);
+
+//helper functions
+
+__device__ unsigned GetTopLeftId(unsigned fieldId);
+__device__ unsigned GetTopRightId(unsigned fieldId);
+__device__ unsigned GetBottomLeftId(unsigned fieldId);
+__device__ unsigned GetBottomRightId(unsigned fieldId);
+
+__device__ Mask GetTopLeftMask(unsigned fieldId);
+__device__ Mask GetTopRightMask(unsigned fieldId);
+__device__ Mask GetBottomLeftMask(unsigned fieldId);
+__device__ Mask GetBottomRightMask(unsigned fieldId);
 
 /*
 __device__ Mask GetTopLeftTakeMask(unsigned int fieldId);
@@ -74,8 +104,15 @@ __device__ Mask GetBottomLeftTakeMask(unsigned int fieldId);
 __device__ Mask GetBottomRightTakeMask(unsigned int fieldId);
 */
 
+__device__ bool CheckQueenTakeMoveForMask(
+    const Mask &originMask,
+    const Mask &takenMask,
+    const Mask &destinationMask,
+    BoardMap &pawns,
+    BoardMap &queens,
+    BoardMap &opponentPawns,
+    BoardMap &opponentQueens);
 
-//helper functions
 __device__ bool CheckPawnTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
@@ -85,6 +122,14 @@ __device__ bool CheckPawnTakeMoveForMask(
     BoardMap &opponentPawns,
     BoardMap &opponentQueens);
 
+__device__ bool CheckQueenNormalMoveForMask(
+    const Mask &originMask,
+    const Mask& destinationMask,
+    BoardMap &pawns,
+    BoardMap &queens,
+    BoardMap& opponentPawns,
+    BoardMap& opponentQueens);
+
 __device__ bool CheckPawnNormalMoveForMask(
     const Mask &originMask,
     const Mask& destinationMask,
@@ -93,16 +138,19 @@ __device__ bool CheckPawnNormalMoveForMask(
     BoardMap& opponentPawns,
     BoardMap& opponentQueens);
 
-__device__ bool CheckQueenTakeMoveForMask(const Mask& mask, BoardMap& opponentPawns, BoardMap& opponentQueens);
 
-__device__ bool CheckQueenNormalMoveForMask(const Mask& mask, CheckersState& state);
-
-
-
-__device__ void CompletePawnMoveFromSubTakeMoveState(CheckersState &state);
-__device__ void CompletePawnNormalMove(CheckersState &state);
 
 __device__ void CompleteQueenMoveFromSubTakeMoveState(CheckersState &state);
+__device__ void CompletePawnMoveFromSubTakeMoveState(CheckersState &state);
 __device__ void CompleteQueenNormalMove(CheckersState &state);
+__device__ void CompletePawnNormalMove(CheckersState &state);
+
+__device__ void AssignSides(
+    const CheckersState &state,
+    BoardMap &pawns,
+    BoardMap &queens,
+    BoardMap &opponentPawns,
+    BoardMap &opponentQueens,
+    const Players& player);
 
 #endif //MCTS_CHECKERS_ACTIONS_CUH
