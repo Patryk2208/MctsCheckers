@@ -26,25 +26,10 @@ __global__ void CheckTerminal(int batchSize, BatchSoACheckersState states, float
     //todo write whether terminal and if so, results
 }
 
-__device__ Mask GetTopLeftMask(unsigned fieldId) {
-    //todo
-}
-
-__device__ Mask GetTopRightMask(unsigned fieldId) {
-    //todo
-}
-
-__device__ Mask GetBottomLeftMask(unsigned fieldId) {
-    //todo
-}
-
-__device__ Mask GetBottomRightMask(unsigned fieldId) {
-    //todo
-}
-
 //todo consider eliminating the IF branches with some ugly conditional numerics
 //todo DONE perhaps it's possible to split into 4 phases queen take, pawn take, queen move, pawn move
-//todo perhaps it's possible to split each phase's 4 directions into one function
+//todo DONE perhaps it's possible to split each phase's 4 directions into one function
+//todo DONE make player a compile time template
 __global__ void GetLegalActions(BatchSoACheckersState& states, int batchSize) {
     extern __shared__ void* sharedMemory;
     auto subStateDataStructure = (LegalTakeMovesSubStateMap*)sharedMemory;
@@ -62,49 +47,43 @@ __global__ void GetLegalActions(BatchSoACheckersState& states, int batchSize) {
 
     //todo first we wanna populate the readStructures somehow only those fields where there is a pawn/queen
 
-    //we can branch the player because all threads in a warp go into the same branch
-    auto activePlayer = (states.metadata_[boardId] & 0b10000000) ? BlackPlayer : WhitePlayer;
-    //take-moves section
-    GetLegalQueenTakeMoves(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace, activePlayer);
-
-    GetLegalPawnTakeMoves(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace, activePlayer);
-
-    if (boardResultActionSpace.size_ == 0) {
-        //normal moves section
-        //todo we might wanna repopulate the read structure and clear structures altogether
-
-        GetLegalQueenNormalMoves(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace, activePlayer);
-
-        GetLegalPawnNormalMoves(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace, activePlayer);
-
+    //we are not diverging here, because each warp is one board and the player is common across fields in one board
+    if (states.metadata_[boardId] & 0b10000000) {
+        DiscoverActions<BlackPlayer>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
     }
+    else {
+        DiscoverActions<WhitePlayer>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    }
+
     __syncwarp();
     //todo now return the space of possible actions
 
 }
 
+template<Players player>
+__device__ void DiscoverActions(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace) {
+    //take-moves section
+    GetLegalQueenTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+
+    if (boardResultActionSpace.size_ == 0) {
+        //normal moves section
+        //todo we might wanna repopulate the read structure and clear structures altogether
+        GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+        GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    }
+}
+
+template<Players player>
 __device__ void GetLegalQueenTakeMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player) {
-
-    auto topLeftFieldId = GetTopLeftId(fieldId);
-    auto topRightFieldId = GetTopRightId(fieldId);
-    auto bottomLeftFieldId = GetBottomLeftId(fieldId);
-    auto bottomRightFieldId = GetBottomRightId(fieldId);
-
-    Mask fieldMask = 1 << fieldId;
-    auto topLeftMask = GetTopLeftMask(fieldId);
-    auto topRightMask = GetTopRightMask(fieldId);
-    auto bottomLeftMask = GetBottomLeftMask(fieldId);
-    auto bottomRightMask = GetBottomRightMask(fieldId);
-
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
+    ResultLegalActionSpace& boardResultActionSpace) {
 
     auto roundCounter = 0;
     while (true) {
@@ -116,65 +95,13 @@ __device__ void GetLegalQueenTakeMoves(
                 break;
             }
             auto activeWarps = __activemask();
-            auto currentTakenFieldId = topLeftFieldId;
-            auto currentTakenMask = topLeftMask;
-            while (currentTakenMask) {
-                auto currentDestinationFieldId = GetTopLeftId(currentTakenFieldId);
-                auto currentDestinationMask = GetTopLeftMask(currentTakenFieldId);
-                while (currentDestinationMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-            }
+            DirectionGetQueenTakeMoves<GetTopLeftDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
-            currentTakenFieldId = topRightFieldId;
-            currentTakenMask = topRightMask;
-            while (currentTakenMask) {
-                auto currentDestinationFieldId = GetTopRightId(currentTakenFieldId);
-                auto currentDestinationMask = GetTopRightMask(currentTakenFieldId);
-                while (currentDestinationMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-            }
+            DirectionGetQueenTakeMoves<GetTopRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
-            currentTakenFieldId = bottomLeftFieldId;
-            currentTakenMask = bottomLeftMask;
-            while (currentTakenMask) {
-                auto currentDestinationFieldId = GetBottomLeftId(currentTakenFieldId);
-                auto currentDestinationMask = GetBottomLeftMask(currentTakenFieldId);
-                while (currentDestinationMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-            }
+            DirectionGetQueenTakeMoves<GetBottomLeftDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
-            currentTakenFieldId = bottomRightFieldId;
-            currentTakenMask = bottomRightMask;
-            while (currentTakenMask) {
-                auto currentDestinationFieldId = GetBottomRightId(currentTakenFieldId);
-                auto currentDestinationMask = GetBottomRightMask(currentTakenFieldId);
-                while (currentDestinationMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-            }
+            DirectionGetQueenTakeMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
             if (!wasPushedSomewhereElse && roundCounter > 0) {
                 CompleteQueenMoveFromSubTakeMoveState(next);
@@ -187,152 +114,60 @@ __device__ void GetLegalQueenTakeMoves(
     }
 }
 
+template<Players player>
 __device__ void GetLegalPawnTakeMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player) {
-
-    auto topLeftFieldId = GetTopLeftId(fieldId);
-    auto topRightFieldId = GetTopRightId(fieldId);
-    auto bottomLeftFieldId = GetBottomLeftId(fieldId);
-    auto bottomRightFieldId = GetBottomRightId(fieldId);
-
-    Mask fieldMask = 1 << fieldId;
-    auto topLeftMask = GetTopLeftMask(fieldId);
-    auto topRightMask = GetTopRightMask(fieldId);
-    auto bottomLeftMask = GetBottomLeftMask(fieldId);
-    auto bottomRightMask = GetBottomRightMask(fieldId);
-
-    auto topLeftTakeMask = GetTopLeftMask(topLeftFieldId);
-    auto topRightTakeMask = GetTopRightMask(topRightFieldId);
-    auto bottomLeftTakeMask = GetBottomLeftMask(bottomLeftFieldId);
-    auto bottomRightTakeMask = GetBottomRightMask(bottomRightFieldId);
-
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
+    ResultLegalActionSpace& boardResultActionSpace) {
 
     auto roundCounter = 0;
+    while (true) {
+        //round start
+        auto wasPushedSomewhereElse = false;
         while (true) {
-            //round start
-            auto wasPushedSomewhereElse = false;
-            while (true) {
-                CheckersState next;
-                if (!fieldSubStateReadStructure.ReadNextFromStructure(next)) {
-                    break;
-                }
-                if (topLeftMask && topLeftTakeMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckPawnTakeMoveForMask(fieldMask, topLeftMask, topLeftTakeMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[topLeftFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-                if (topRightMask && topRightTakeMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckPawnTakeMoveForMask(fieldMask, topRightMask, topRightTakeMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[topRightFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-                if (bottomLeftMask && bottomLeftTakeMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckPawnTakeMoveForMask(fieldMask, bottomLeftMask, bottomLeftTakeMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[bottomLeftFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-                if (bottomRightMask && bottomRightTakeMask) {
-                    auto potentialNewSubState = next;
-                    AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-                    if (CheckPawnTakeMoveForMask(fieldMask, bottomRightMask, bottomRightTakeMask, pawns, queens, opponentPawns, opponentQueens)) {
-                        boardSubStateMap.writeStructures_[bottomRightFieldId].WriteToStructure(potentialNewSubState);
-                        wasPushedSomewhereElse = true;
-                    }
-                }
-                if (!wasPushedSomewhereElse && roundCounter > 0) {
-                    CompletePawnMoveFromSubTakeMoveState(next);
-                    boardResultActionSpace.AppendToStructure(next);
-                }
+            CheckersState next;
+            if (!fieldSubStateReadStructure.ReadNextFromStructure(next)) {
+                break;
             }
-            //todo setup the data structure after the round
-            if (!__any_sync(0xffffffff, wasPushedSomewhereElse)) break;
-            ++roundCounter;
+            auto activeWarps = __activemask();
+            DirectionGetPawnTakeMoves<GetTopLeftDirection>, player(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
+            __syncwarp(activeWarps);
+            DirectionGetPawnTakeMoves<GetTopRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
+            __syncwarp(activeWarps);
+            DirectionGetPawnTakeMoves<GetBottomLeftDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
+            __syncwarp(activeWarps);
+            DirectionGetPawnTakeMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
+            __syncwarp(activeWarps);
+            if (!wasPushedSomewhereElse && roundCounter > 0) {
+                CompletePawnMoveFromSubTakeMoveState(next);
+                boardResultActionSpace.AppendToStructure(next);
+            }
         }
+        //todo setup the data structure after the round
+        if (!__any_sync(0xffffffff, wasPushedSomewhereElse)) break;
+        ++roundCounter;
+    }
 }
 
+template<Players player>
 __device__ void GetLegalQueenNormalMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player) {
-
-    auto topLeftFieldId = GetTopLeftId(fieldId);
-    auto topRightFieldId = GetTopRightId(fieldId);
-    auto bottomLeftFieldId = GetBottomLeftId(fieldId);
-    auto bottomRightFieldId = GetBottomRightId(fieldId);
-
-    Mask fieldMask = 1 << fieldId;
-    auto topLeftMask = GetTopLeftMask(fieldId);
-    auto topRightMask = GetTopRightMask(fieldId);
-    auto bottomLeftMask = GetBottomLeftMask(fieldId);
-    auto bottomRightMask = GetBottomRightMask(fieldId);
-
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
+    ResultLegalActionSpace& boardResultActionSpace) {
 
     CheckersState next;
     if (fieldSubStateReadStructure.ReadNextFromStructure(next)) {
         auto activeWarps = __activemask();
 
-        auto currentDestinationFieldId = GetTopLeftId(fieldId);
-        auto currentDestinationMask = GetTopLeftMask(fieldId);
-        while (currentDestinationMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-            }
-        }
+        DirectionGetQueenNormalMoves<GetTopLeftDirection, player>(fieldId, next, boardSubStateMap);
         __syncwarp(activeWarps);
-        currentDestinationFieldId = GetTopRightId(fieldId);
-        currentDestinationMask = GetTopRightMask(fieldId);
-        while (currentDestinationMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-            }
-        }
+        DirectionGetQueenNormalMoves<GetTopRightDirection, player>(fieldId, next, boardSubStateMap);
         __syncwarp(activeWarps);
-        currentDestinationFieldId = GetBottomLeftId(fieldId);
-        currentDestinationMask = GetBottomLeftMask(fieldId);
-        while (currentDestinationMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-            }
-        }
+        DirectionGetQueenNormalMoves<GetBottomLeftDirection, player>(fieldId, next, boardSubStateMap);
         __syncwarp(activeWarps);
-        currentDestinationFieldId = GetBottomRightId(fieldId);
-        currentDestinationMask = GetBottomRightMask(fieldId);
-        while (currentDestinationMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
-            }
-        }
+        DirectionGetQueenNormalMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap);
         __syncwarp(activeWarps);
     }
     //todo setup the data structure after the round
@@ -345,45 +180,29 @@ __device__ void GetLegalQueenNormalMoves(
     }
 }
 
+template<Players player>
 __device__ void GetLegalPawnNormalMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player) {
-
-    auto topLeftFieldId = GetTopLeftId(fieldId);
-    auto topRightFieldId = GetTopRightId(fieldId);
-
-    Mask fieldMask = 1 << fieldId;
-    auto topLeftMask = GetTopLeftMask(fieldId);
-    auto topRightMask = GetTopRightMask(fieldId);
-
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
+    ResultLegalActionSpace& boardResultActionSpace) {
 
     CheckersState next;
     if (fieldSubStateReadStructure.ReadNextFromStructure(next)) {
         auto activeWarps = __activemask();
 
-        if (topLeftMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckPawnNormalMoveForMask(fieldMask, topLeftMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[topLeftFieldId].WriteToStructure(potentialNewSubState);
-            }
+        if constexpr (player == WhitePlayer) {
+            DirectionGetPawnNormalMoves<GetTopLeftDirection, player>(fieldId, next, boardSubStateMap);
+            __syncwarp(activeWarps);
+            DirectionGetPawnNormalMoves<GetTopRightDirection, player>(fieldId, next, boardSubStateMap);
+            __syncwarp(activeWarps);
         }
-        __syncwarp(activeWarps);
-        if (topRightMask) {
-            auto potentialNewSubState = next;
-            AssignSides(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens, player);
-            if (CheckPawnNormalMoveForMask(fieldMask, topRightMask, pawns, queens, opponentPawns, opponentQueens)) {
-                boardSubStateMap.writeStructures_[topRightFieldId].WriteToStructure(potentialNewSubState);
-            }
+        else {
+            DirectionGetPawnNormalMoves<GetBottomLeftDirection, player>(fieldId, next, boardSubStateMap);
+            __syncwarp(activeWarps);
+            DirectionGetPawnNormalMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap);
+            __syncwarp(activeWarps);
         }
-        __syncwarp(activeWarps);
     }
     __syncwarp(0xffffffff);
     //todo setup the data structure after the round
@@ -395,8 +214,136 @@ __device__ void GetLegalPawnNormalMoves(
     }
 }
 
+template<typename Direction, Players player>
+__device__ void DirectionGetQueenTakeMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    bool& wasPushed) {
+    static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
+    Mask fieldMask = 1 << fieldId;
 
+    BoardMap pawns;
+    BoardMap queens;
+    BoardMap opponentPawns;
+    BoardMap opponentQueens;
+
+    auto currentTakenFieldId = Direction::GetId(fieldId);
+    auto currentTakenMask = Direction::GetMask(fieldId);
+    while (currentTakenMask) {
+        auto potentialNewSubState = next;
+        AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+
+        if (opponentPawns & currentTakenMask || opponentQueens & currentTakenMask) {
+            auto currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
+            auto currentDestinationMask = Direction::GetMask(currentTakenFieldId);
+            while (currentDestinationMask) {
+                if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+                    boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
+                    wasPushed = true;
+                }
+                currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
+                currentDestinationMask = Direction::GetMask(currentDestinationFieldId);
+            }
+        }
+        if (pawns & currentTakenMask || queens & currentTakenMask) {
+            break;
+        }
+        currentTakenFieldId = Direction::GetId(currentTakenFieldId);
+        currentTakenMask = Direction::GetMask(currentTakenFieldId);
+    }
+}
+
+template<typename Direction, Players player>
+__device__ void DirectionGetPawnTakeMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    bool& wasPushed) {
+    static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
+
+    Mask fieldMask = 1 << fieldId;
+
+    BoardMap pawns;
+    BoardMap queens;
+    BoardMap opponentPawns;
+    BoardMap opponentQueens;
+
+    auto takenId = Direction::GetId(fieldId);
+    auto takenMask = Direction::GetMask(fieldId);
+    auto destinationMask = Direction::GetMask(takenId);
+
+    if (takenMask && destinationMask) {
+        auto potentialNewSubState = next;
+        AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+        if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+            boardSubStateMap.writeStructures_[takenId].WriteToStructure(potentialNewSubState);
+            wasPushed = true;
+        }
+    }
+
+}
+
+template<typename Direction, Players player>
+__device__ void DirectionGetQueenNormalMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
+
+    Mask fieldMask = 1 << fieldId;
+
+    BoardMap pawns;
+    BoardMap queens;
+    BoardMap opponentPawns;
+    BoardMap opponentQueens;
+
+    auto currentDestinationFieldId = Direction::GetId(fieldId);
+    auto currentDestinationMask = Direction::GetMask(fieldId);
+    while (currentDestinationMask) {
+        auto potentialNewSubState = next;
+        AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+
+        if (
+            pawns & currentDestinationMask ||
+            opponentPawns & currentDestinationMask ||
+            queens & currentDestinationMask ||
+            opponentQueens & currentDestinationMask
+            ) {
+            break;
+        }
+
+        if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+            boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
+        }
+    }
+}
+
+template<typename Direction, Players player>
+__device__ void DirectionGetPawnNormalMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
+
+    Mask fieldMask = 1 << fieldId;
+
+    BoardMap pawns;
+    BoardMap queens;
+    BoardMap opponentPawns;
+    BoardMap opponentQueens;
+
+    auto destinationId = Direction::GetId(fieldId);
+    auto destinationMask = Direction::GetMask(fieldId);
+    if (destinationMask) {
+        auto potentialNewSubState = next;
+        AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+        if (CheckPawnNormalMoveForMask(fieldMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+            boardSubStateMap.writeStructures_[destinationId].WriteToStructure(potentialNewSubState);
+        }
+    }
+}
 
 //helper functions
 
@@ -472,15 +419,14 @@ __device__ void CompletePawnNormalMove(CheckersState &state) {
     //todo promotion
 }
 
+template<Players player>
 __device__ void AssignSides(
     const CheckersState &state,
     BoardMap &pawns,
     BoardMap &queens,
     BoardMap &opponentPawns,
-    BoardMap &opponentQueens,
-    const Players& player) {
-    //does not introduce divergence because the player is the same for the entire warp
-    if (player == WhitePlayer) {
+    BoardMap &opponentQueens) {
+    if constexpr (player == WhitePlayer) {
         pawns = state.whitePawns_;
         queens = state.whiteQueens_;
         opponentPawns = state.blackPawns_;

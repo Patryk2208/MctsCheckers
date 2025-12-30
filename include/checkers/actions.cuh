@@ -57,46 +57,99 @@ struct ResultLegalActionSpace {
  */
 __global__ void GetLegalActions(BatchSoACheckersState& states, int batchSize); //todo output format for this function
 
+template<Players player>
+__device__ void DiscoverActions(
+    const unsigned &fieldId,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    ResultLegalActionSpace& boardResultActionSpace);
+
+//phase functions
+template<Players player>
 __device__ void GetLegalQueenTakeMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player);
+    ResultLegalActionSpace& boardResultActionSpace);
 
+template<Players player>
 __device__ void GetLegalPawnTakeMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player);
+    ResultLegalActionSpace& boardResultActionSpace);
 
+template<Players player>
 __device__ void GetLegalQueenNormalMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player);
+    ResultLegalActionSpace& boardResultActionSpace);
 
+template<Players player>
 __device__ void GetLegalPawnNormalMoves(
     const unsigned &fieldId,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace,
-    Players player);
+    ResultLegalActionSpace& boardResultActionSpace);
+
+//direction functions
+
+struct GetTopLeftDirection {
+    __device__ static unsigned GetId(unsigned fieldId);
+    __device__ static Mask GetMask(unsigned fieldId);
+};
+
+struct GetTopRightDirection {
+    __device__ static unsigned GetId(unsigned fieldId);
+    __device__ static Mask GetMask(unsigned fieldId);
+};
+
+struct GetBottomLeftDirection {
+    __device__ static unsigned GetId(unsigned fieldId);
+    __device__ static Mask GetMask(unsigned fieldId);
+};
+
+struct GetBottomRightDirection {
+    __device__ static unsigned GetId(unsigned fieldId);
+    __device__ static Mask GetMask(unsigned fieldId);
+};
+
+template <typename Dir>
+constexpr bool IsValidDirection =
+    std::is_same_v<Dir, GetTopLeftDirection> ||
+    std::is_same_v<Dir, GetTopRightDirection> ||
+    std::is_same_v<Dir, GetBottomLeftDirection> ||
+    std::is_same_v<Dir, GetBottomRightDirection>;
+
+template<typename Direction, Players player>
+__device__ void DirectionGetQueenTakeMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    bool& wasPushed);
+
+template<typename Direction, Players player>
+__device__ void DirectionGetPawnTakeMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap,
+    bool& wasPushed);
+
+template<typename Direction, Players player>
+__device__ void DirectionGetQueenNormalMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap);
+
+template<typename Direction, Players player>
+__device__ void DirectionGetPawnNormalMoves(
+    unsigned fieldId,
+    CheckersState& next,
+    LegalTakeMovesSubStateMap& boardSubStateMap);
+
 
 //helper functions
-
-__device__ unsigned GetTopLeftId(unsigned fieldId);
-__device__ unsigned GetTopRightId(unsigned fieldId);
-__device__ unsigned GetBottomLeftId(unsigned fieldId);
-__device__ unsigned GetBottomRightId(unsigned fieldId);
-
-__device__ Mask GetTopLeftMask(unsigned fieldId);
-__device__ Mask GetTopRightMask(unsigned fieldId);
-__device__ Mask GetBottomLeftMask(unsigned fieldId);
-__device__ Mask GetBottomRightMask(unsigned fieldId);
-
 /*
 __device__ Mask GetTopLeftTakeMask(unsigned int fieldId);
 __device__ Mask GetTopRightTakeMask(unsigned int fieldId);
@@ -145,12 +198,12 @@ __device__ void CompletePawnMoveFromSubTakeMoveState(CheckersState &state);
 __device__ void CompleteQueenNormalMove(CheckersState &state);
 __device__ void CompletePawnNormalMove(CheckersState &state);
 
+template<Players player>
 __device__ void AssignSides(
     const CheckersState &state,
     BoardMap &pawns,
     BoardMap &queens,
     BoardMap &opponentPawns,
-    BoardMap &opponentQueens,
-    const Players& player);
+    BoardMap &opponentQueens);
 
 #endif //MCTS_CHECKERS_ACTIONS_CUH
