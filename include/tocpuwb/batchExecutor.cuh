@@ -4,6 +4,7 @@
 #ifndef MCTS_CHECKERS_BATCHEXECUTOR_CUH
 #define MCTS_CHECKERS_BATCHEXECUTOR_CUH
 #include <checkers/state.hpp>
+#include <checkers/actions/actions.cuh>
 #include <cudaUtils/smartPointer.cuh>
 
 
@@ -17,8 +18,15 @@ struct BatchSoACheckersState {
     BoardMap* blackPawns_;
     BoardMapMetadata* metadata_;
 
-public:
+    BatchSoACheckersState(std::vector<CheckersState>& states);
+    ~BatchSoACheckersState();
     CudaResource<BatchSoACheckersState> &CopyToGpu(size_t size) const;
+};
+
+struct BatchLegalActions {
+    ResultLegalActionSpace* actions_;
+
+    void CopyFromGpu(CudaResource<BatchLegalActions>& resource);
 };
 
 struct BatchResults {
@@ -31,6 +39,7 @@ public:
 
 class BatchExecutor {
 public:
+    void Test(size_t size, BatchSoACheckersState batch, BatchLegalActions actions);
     void Run(size_t size, BatchSoACheckersState batch, BatchResults results);
 };
 

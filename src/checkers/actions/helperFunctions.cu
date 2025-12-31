@@ -4,6 +4,11 @@
 
 #include <checkers/actions/helperFunctions.cuh>
 
+
+__device__ Mask GetMask(const unsigned& originalFieldId, const unsigned& currentFieldId) {
+    return currentFieldId == originalFieldId ? 0u : 1u << currentFieldId;
+}
+
 __device__ bool CheckQueenTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
@@ -12,7 +17,20 @@ __device__ bool CheckQueenTakeMoveForMask(
     BoardMap &queens,
     BoardMap &opponentPawns,
     BoardMap &opponentQueens) {
-    //todo
+    const auto isOpponentTaken = ((opponentPawns & takenMask) || (opponentQueens & takenMask));
+    const auto isDestinationFree = !(opponentPawns & destinationMask || opponentQueens & destinationMask || pawns & destinationMask || queens & destinationMask);
+    if (isOpponentTaken && isDestinationFree) {
+        queens &= !originMask;
+        queens |= destinationMask;
+        if (opponentPawns & takenMask) {
+            opponentPawns &= !takenMask;
+        }
+        else {
+            opponentQueens &= !takenMask;
+        }
+        return true;
+    }
+    return false;
 }
 
 __device__ bool CheckPawnTakeMoveForMask(
@@ -23,8 +41,8 @@ __device__ bool CheckPawnTakeMoveForMask(
     BoardMap &queens,
     BoardMap& opponentPawns,
     BoardMap& opponentQueens) {
-    auto isOpponentTaken = ((opponentPawns & takenMask) || (opponentQueens & takenMask));
-    auto isDestinationFree = !(opponentPawns & destinationMask || opponentQueens & destinationMask || pawns & destinationMask || queens & destinationMask);
+    const auto isOpponentTaken = ((opponentPawns & takenMask) || (opponentQueens & takenMask));
+    const auto isDestinationFree = !(opponentPawns & destinationMask || opponentQueens & destinationMask || pawns & destinationMask || queens & destinationMask);
     if (isOpponentTaken && isDestinationFree) {
         pawns &= !originMask;
         pawns |= destinationMask;
@@ -46,7 +64,13 @@ __device__ bool CheckQueenNormalMoveForMask(
     BoardMap &queens,
     BoardMap& opponentPawns,
     BoardMap& opponentQueens) {
-    //todo
+    const auto isDestinationFree = !(pawns & destinationMask || opponentPawns & destinationMask || queens & destinationMask || opponentQueens & destinationMask);
+    if (isDestinationFree) {
+        queens &= !originMask;
+        queens |= destinationMask;
+        return true;
+    }
+    return false;
 }
 
 __device__ bool CheckPawnNormalMoveForMask(
@@ -56,7 +80,7 @@ __device__ bool CheckPawnNormalMoveForMask(
     BoardMap &queens,
     BoardMap& opponentPawns,
     BoardMap& opponentQueens) {
-    auto isDestinationFree = !(pawns & destinationMask || opponentPawns & destinationMask || queens & destinationMask || opponentQueens & destinationMask);
+    const auto isDestinationFree = !(pawns & destinationMask || opponentPawns & destinationMask || queens & destinationMask || opponentQueens & destinationMask);
     if (isDestinationFree) {
         pawns &= !originMask;
         pawns |= destinationMask;
@@ -66,24 +90,54 @@ __device__ bool CheckPawnNormalMoveForMask(
 }
 
 
-__device__ void CompleteQueenTakeMove(CheckersState &state) {
-    //todo
-}
-
-__device__ void CompletePawnTakeMove(CheckersState &state) {
+template<Players player>
+__device__ void CompleteQueenTakeMove(const unsigned &fieldId, CheckersState &state) {
     state.metadata_ ^= 0b10000000; //changing the turn
     state.metadata_ &= 0b11110000; //resetting the draw count
-    //todo promotion
 }
 
-__device__ void CompleteQueenNormalMove(CheckersState &state) {
-    //todo
-}
-
-__device__ void CompletePawnNormalMove(CheckersState &state) {
+template<Players player>
+__device__ void CompletePawnTakeMove(const unsigned &fieldId, CheckersState &state) {
     state.metadata_ ^= 0b10000000; //changing the turn
     state.metadata_ &= 0b11110000; //resetting the draw count
-    //todo promotion
+    const auto fieldMask = 1 << fieldId;
+    if constexpr (player == WhitePlayer) {
+        if (fieldId > 27) {
+            state.whitePawns_ ^= fieldMask;
+            state.whiteQueens_ ^= fieldMask;
+        }
+    }
+    else {
+        if (fieldId < 4) {
+            state.blackPawns_ ^= fieldMask;
+            state.blackQueens_ ^= fieldMask;
+        }
+    }
+}
+
+template<Players player>
+__device__ void CompleteQueenNormalMove(const unsigned &fieldId, CheckersState &state) {
+    state.metadata_ ^= 0b10000000; //changing the turn
+    state.metadata_++; //updating the draw count
+}
+
+template<Players player>
+__device__ void CompletePawnNormalMove(const unsigned &fieldId, CheckersState &state) {
+    state.metadata_ ^= 0b10000000; //changing the turn
+    state.metadata_ &= 0b11110000; //resetting the draw count
+    const auto fieldMask = 1 << fieldId;
+    if constexpr (player == WhitePlayer) {
+        if (fieldId > 27) {
+            state.whitePawns_ ^= fieldMask;
+            state.whiteQueens_ ^= fieldMask;
+        }
+    }
+    else {
+        if (fieldId < 4) {
+            state.blackPawns_ ^= fieldMask;
+            state.blackQueens_ ^= fieldMask;
+        }
+    }
 }
 
 

@@ -30,8 +30,8 @@ __device__ void GetLegalQueenTakeMoves(
             DirectionGetQueenTakeMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
             if (!wasPushedSomewhereElse && roundCounter > 0) {
-                CompleteQueenTakeMove(next);
-                boardResultActionSpace.AppendToStructure(next);
+                CompleteQueenTakeMove<player>(fieldId, next);
+                boardResultActionSpace.AppendToStructure(fieldId, next);
             }
         }
         boardSubStateMap.SwapDataStructures();
@@ -66,8 +66,8 @@ __device__ void GetLegalPawnTakeMoves(
             DirectionGetPawnTakeMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap, wasPushedSomewhereElse);
             __syncwarp(activeWarps);
             if (!wasPushedSomewhereElse && roundCounter > 0) {
-                CompletePawnTakeMove(next);
-                boardResultActionSpace.AppendToStructure(next);
+                CompletePawnTakeMove<player>(fieldId, next);
+                boardResultActionSpace.AppendToStructure(fieldId, next);
             }
         }
         boardSubStateMap.SwapDataStructures();
@@ -101,7 +101,8 @@ __device__ void GetLegalQueenNormalMoves(
         if (!fieldSubStateReadStructure.ReadNextFromStructure(next)) {
             break;
         }
-        boardResultActionSpace.AppendToStructure(next);
+        CompleteQueenNormalMove<player>(fieldId, next);
+        boardResultActionSpace.AppendToStructure(fieldId, next);
     }
 }
 
@@ -134,6 +135,7 @@ __device__ void GetLegalPawnNormalMoves(
         if (!fieldSubStateReadStructure.ReadNextFromStructure(next)) {
             break;
         }
-        boardResultActionSpace.AppendToStructure(next);
+        CompletePawnNormalMove<player>(fieldId, next);
+        boardResultActionSpace.AppendToStructure(fieldId, next);
     }
 }

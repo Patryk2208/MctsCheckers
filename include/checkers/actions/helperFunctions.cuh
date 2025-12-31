@@ -9,6 +9,11 @@
 
 using Mask = unsigned int;
 
+__device__ Mask GetMask(const unsigned& originalFieldId, const unsigned& currentFieldId);
+
+/**
+ * Only if we are sure there is our queen at originMask
+ */
 __device__ bool CheckQueenTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
@@ -18,6 +23,9 @@ __device__ bool CheckQueenTakeMoveForMask(
     BoardMap &opponentPawns,
     BoardMap &opponentQueens);
 
+/**
+ * Only if we are sure there is our pawn at originMask
+ */
 __device__ bool CheckPawnTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
@@ -27,6 +35,9 @@ __device__ bool CheckPawnTakeMoveForMask(
     BoardMap &opponentPawns,
     BoardMap &opponentQueens);
 
+/**
+ * Only if we are sure there is our queen at originMask
+ */
 __device__ bool CheckQueenNormalMoveForMask(
     const Mask &originMask,
     const Mask& destinationMask,
@@ -35,6 +46,9 @@ __device__ bool CheckQueenNormalMoveForMask(
     BoardMap& opponentPawns,
     BoardMap& opponentQueens);
 
+/**
+ * Only if we are sure there is our pawn at originMask
+ */
 __device__ bool CheckPawnNormalMoveForMask(
     const Mask &originMask,
     const Mask& destinationMask,
@@ -43,10 +57,18 @@ __device__ bool CheckPawnNormalMoveForMask(
     BoardMap& opponentPawns,
     BoardMap& opponentQueens);
 
-__device__ void CompleteQueenTakeMove(CheckersState &state);
-__device__ void CompletePawnTakeMove(CheckersState &state);
-__device__ void CompleteQueenNormalMove(CheckersState &state);
-__device__ void CompletePawnNormalMove(CheckersState &state);
+
+template<Players player>
+__device__ void CompleteQueenTakeMove(const unsigned &fieldId, CheckersState &state);
+
+template<Players player>
+__device__ void CompletePawnTakeMove(const unsigned &fieldId, CheckersState &state);
+
+template<Players player>
+__device__ void CompleteQueenNormalMove(const unsigned &fieldId, CheckersState &state);
+
+template<Players player>
+__device__ void CompletePawnNormalMove(const unsigned &fieldId, CheckersState &state);
 
 template<Players player>
 __device__ void AssignSides(

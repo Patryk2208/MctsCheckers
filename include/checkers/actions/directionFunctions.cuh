@@ -9,23 +9,19 @@
 #include <checkers/actions/shmStructure.cuh>
 
 struct GetTopLeftDirection {
-    __device__ static unsigned GetId(unsigned fieldId);
-    __device__ static Mask GetMask(unsigned fieldId);
+    __device__ static unsigned GetId(const unsigned &fieldId);
 };
 
 struct GetTopRightDirection {
-    __device__ static unsigned GetId(unsigned fieldId);
-    __device__ static Mask GetMask(unsigned fieldId);
+    __device__ static unsigned GetId(const unsigned &fieldId);
 };
 
 struct GetBottomLeftDirection {
-    __device__ static unsigned GetId(unsigned fieldId);
-    __device__ static Mask GetMask(unsigned fieldId);
+    __device__ static unsigned GetId(const unsigned &fieldId);
 };
 
 struct GetBottomRightDirection {
-    __device__ static unsigned GetId(unsigned fieldId);
-    __device__ static Mask GetMask(unsigned fieldId);
+    __device__ static unsigned GetId(const unsigned &fieldId);
 };
 
 template <typename Dir>

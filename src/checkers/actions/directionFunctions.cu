@@ -4,40 +4,42 @@
 
 #include <checkers/actions/directionFunctions.cuh>
 
+//todo test for each fieldId
 
-unsigned GetTopLeftDirection::GetId(unsigned fieldId) {
-
+unsigned GetTopLeftDirection::GetId(const unsigned &fieldId) {
+    //to get top left we add 3 to a valid field, or 4 when we are in an odd row
+    //the field is valid <=> (fieldId % 4 != 0 or fieldId / 4 % 2 == 1) and fieldId < 28(not top row)
+    const auto isRowOdd = (fieldId >> 2) & 1; //same as / 4
+    const auto column = fieldId & 3; //same as % 4
+    const unsigned isValid = (column != 0 | isRowOdd) & (fieldId < 28);
+    return fieldId + isValid * (3 + isRowOdd);
 }
 
-Mask GetTopLeftDirection::GetMask(unsigned fieldId) {
-
+unsigned GetTopRightDirection::GetId(const unsigned &fieldId) {
+    //to get top right we add 4 to a valid field, or 5 when we are in an odd row
+    //the field is valid <=> (fieldId % 4 != 3 or fieldId / 4 % 2 == 0) and fieldId < 28(not top row)
+    const auto isRowEven = ~(fieldId >> 2) & 1;
+    const auto column = fieldId & 3;
+    const unsigned isValid = (column != 3 | isRowEven) & (fieldId < 28);
+    return fieldId + isValid * (4 + !isRowEven);
 }
 
-
-unsigned GetTopRightDirection::GetId(unsigned fieldId) {
-
+unsigned GetBottomLeftDirection::GetId(const unsigned &fieldId) {
+    //to get bottom left we subtract 4 from a valid field, or 5 when we are in an even row
+    //the field is valid <=> (fieldId % 4 != 0 or fieldId / 4 % 2 == 1) and fieldId > 3 (not bottom row)
+    const auto isRowOdd = (fieldId >> 2) & 1;
+    const auto column = fieldId & 3;
+    const unsigned isValid = (column != 0 | isRowOdd) & (fieldId > 3);
+    return fieldId - isValid * (4 + !isRowOdd);
 }
 
-Mask GetTopRightDirection::GetMask(unsigned fieldId) {
-
-}
-
-
-unsigned GetBottomLeftDirection::GetId(unsigned fieldId) {
-
-}
-
-Mask GetBottomLeftDirection::GetMask(unsigned fieldId) {
-
-}
-
-
-unsigned GetBottomRightDirection::GetId(unsigned fieldId) {
-
-}
-
-Mask GetBottomRightDirection::GetMask(unsigned fieldId) {
-
+unsigned GetBottomRightDirection::GetId(const unsigned &fieldId) {
+    //to get bottom right we subtract 3 from a valid field, or 4 when we are in an even row
+    //the field is valid <=> (fieldId % 4 != 3 or fieldId / 4 % 2 == 0) and fieldId > 3 (not bottom row)
+    const auto isRowEven = ~(fieldId >> 2) & 1;
+    const auto column = fieldId & 3;
+    const unsigned isValid = (column != 0 | isRowEven) & (fieldId > 3);
+    return fieldId - isValid * (3 + isRowEven);
 }
 
 
@@ -49,7 +51,7 @@ __device__ void DirectionGetQueenTakeMoves(
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
-    Mask fieldMask = 1 << fieldId;
+    const Mask fieldMask = 1 << fieldId;
 
     BoardMap pawns;
     BoardMap queens;
@@ -57,28 +59,33 @@ __device__ void DirectionGetQueenTakeMoves(
     BoardMap opponentQueens;
 
     auto currentTakenFieldId = Direction::GetId(fieldId);
-    auto currentTakenMask = Direction::GetMask(fieldId);
+    auto currentTakenMask = GetMask(fieldId, currentTakenFieldId);
     while (currentTakenMask) {
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
         if (opponentPawns & currentTakenMask || opponentQueens & currentTakenMask) {
             auto currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
-            auto currentDestinationMask = Direction::GetMask(currentTakenFieldId);
+            auto currentDestinationMask = GetMask(currentTakenFieldId, currentDestinationFieldId);
             while (currentDestinationMask) {
+                potentialNewSubState = next;
+                AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+
                 if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                    boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
+                    boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(currentDestinationFieldId, potentialNewSubState);
                     wasPushed = true;
                 }
+                const auto oldDestinationFieldId = currentDestinationFieldId;
                 currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
-                currentDestinationMask = Direction::GetMask(currentDestinationFieldId);
+                currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);
             }
         }
         if (pawns & currentTakenMask || queens & currentTakenMask) {
             break;
         }
+        const auto oldTakenFieldId = currentTakenFieldId;
         currentTakenFieldId = Direction::GetId(currentTakenFieldId);
-        currentTakenMask = Direction::GetMask(currentTakenFieldId);
+        currentTakenMask = GetMask(oldTakenFieldId, currentTakenFieldId);
     }
 }
 
@@ -90,7 +97,7 @@ __device__ void DirectionGetPawnTakeMoves(
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
-    Mask fieldMask = 1 << fieldId;
+    const Mask fieldMask = 1 << fieldId;
 
     BoardMap pawns;
     BoardMap queens;
@@ -98,14 +105,14 @@ __device__ void DirectionGetPawnTakeMoves(
     BoardMap opponentQueens;
 
     auto takenId = Direction::GetId(fieldId);
-    auto takenMask = Direction::GetMask(fieldId);
-    auto destinationMask = Direction::GetMask(takenId);
+    auto takenMask = GetMask(fieldId, takenId);
+    auto destinationMask = GetMask(takenId, Direction::GetId(takenId));
 
     if (takenMask && destinationMask) {
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[takenId].WriteToStructure(potentialNewSubState);
+            boardSubStateMap.writeStructures_[takenId].WriteToStructure(takenId, potentialNewSubState);
             wasPushed = true;
         }
     }
@@ -119,7 +126,7 @@ __device__ void DirectionGetQueenNormalMoves(
     LegalTakeMovesSubStateMap& boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
-    Mask fieldMask = 1 << fieldId;
+    const Mask fieldMask = 1 << fieldId;
 
     BoardMap pawns;
     BoardMap queens;
@@ -127,7 +134,7 @@ __device__ void DirectionGetQueenNormalMoves(
     BoardMap opponentQueens;
 
     auto currentDestinationFieldId = Direction::GetId(fieldId);
-    auto currentDestinationMask = Direction::GetMask(fieldId);
+    auto currentDestinationMask = GetMask(fieldId, currentDestinationFieldId);
     while (currentDestinationMask) {
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
@@ -142,7 +149,7 @@ __device__ void DirectionGetQueenNormalMoves(
         }
 
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(potentialNewSubState);
+            boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(currentDestinationFieldId, potentialNewSubState);
         }
     }
 }
@@ -154,7 +161,7 @@ __device__ void DirectionGetPawnNormalMoves(
     LegalTakeMovesSubStateMap& boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
-    Mask fieldMask = 1 << fieldId;
+    const Mask fieldMask = 1 << fieldId;
 
     BoardMap pawns;
     BoardMap queens;
@@ -162,12 +169,12 @@ __device__ void DirectionGetPawnNormalMoves(
     BoardMap opponentQueens;
 
     auto destinationId = Direction::GetId(fieldId);
-    auto destinationMask = Direction::GetMask(fieldId);
+    auto destinationMask = GetMask(fieldId, destinationId);
     if (destinationMask) {
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnNormalMoveForMask(fieldMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[destinationId].WriteToStructure(potentialNewSubState);
+            boardSubStateMap.writeStructures_[destinationId].WriteToStructure(destinationId, potentialNewSubState);
         }
     }
 }

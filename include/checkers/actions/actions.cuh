@@ -19,20 +19,21 @@
  * @param results
  * @param terminal
  */
-__global__ void CheckTerminal(int batchSize, BatchSoACheckersState states, float* results, bool* terminal);
+__global__ void CheckTerminal(int batchSize, BatchSoACheckersState *states, float* results, bool* terminal);
 
 /**
- * Calculates all legal actions into a structure???
+ * Calculates all legal actions into a result array
  * Uses a thread per a field on a board, checks all possible take-moves first, if none available,
  * checks all possible moves, if none moves then it's a draw, such situation must be caught by CheckTerminal
- * One thread has its own data structure??? in shared memory, the algorithm runs in rounds with __syncthreads(),
+ * One thread has its own data structure in shared memory, the algorithm runs in rounds,
  * in each round a thread(pos) reads all possible states and creates all possible one-moves, writes those to the
- * structure of a destination thread(pos) and ends its round. todo
+ * structure of a destination thread(pos) and ends its round.
+ * @param batchSize
+ * @param batchSize
  * @param states
- * @param batchSize
- * @param batchSize
+ * @param actions
  */
-__global__ void GetLegalActions(BatchSoACheckersState& states, int batchSize); //todo output format for this function
+__global__ void GetLegalActions(size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions);
 
 template<Players player>
 __device__ void InitializeDataStructure(
