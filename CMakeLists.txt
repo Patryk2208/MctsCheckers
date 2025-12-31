@@ -28,7 +28,11 @@ set(SOURCES
         src/tocpuwb/batchQueue.cpp
         src/tocpuwb/batchExecutor.cu
         src/checkers/state.cpp
-        src/checkers/actions.cu
+        src/checkers/actions/actions.cu
+        src/checkers/actions/phaseFunctions.cu
+        src/checkers/actions/directionFunctions.cu
+        src/checkers/actions/helperFunctions.cu
+        src/checkers/actions/shmStructure.cu
 )
 
 add_executable(MCTS ${SOURCES})

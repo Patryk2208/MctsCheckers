@@ -3,7 +3,7 @@
 //
 
 #include "tocpuwb/batchExecutor.cuh"
-#include "checkers/actions.cuh"
+#include "../../include/checkers/actions/actions.cuh"
 #include "cudaUtils/smartPointer.cuh"
 
 CudaResource<BatchSoACheckersState> &BatchSoACheckersState::CopyToGpu(size_t size) const {
