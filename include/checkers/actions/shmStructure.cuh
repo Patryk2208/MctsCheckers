@@ -5,6 +5,7 @@
 #ifndef MCTS_CHECKERS_SHMSTRUCTURE_CUH
 #define MCTS_CHECKERS_SHMSTRUCTURE_CUH
 
+#include <cudaUtils/cudaCompatibility.hpp>
 #include <checkers/state.hpp>
 
 //todo optimize those defines
@@ -18,11 +19,11 @@ struct SubStatesPerFieldStructure {
     /**
      * One thread reads its buffer pops it
      */
-    __device__ bool ReadNextFromStructure(CheckersState &state);
+    D bool ReadNextFromStructure(CheckersState &state);
     /**
      * Has to be warp-safe, as multiple threads in a warp can write to other warp's structure at the same time
      */
-    __device__ void WriteToStructure(const unsigned &fieldId, const CheckersState &state);
+    D void WriteToStructure(const unsigned &fieldId, const CheckersState &state);
 };
 
 struct LegalTakeMovesSubStateMap {
@@ -33,7 +34,7 @@ public:
     SubStatesPerFieldStructure* readStructures_ = structures1_;
     SubStatesPerFieldStructure* writeStructures_ = structures2_;
 
-    __device__ void SwapDataStructures();
+    D void SwapDataStructures();
 };
 
 struct ResultLegalActionSpace {
@@ -43,7 +44,7 @@ struct ResultLegalActionSpace {
     /**
      * Has to be warp-safe, because there is one result space per board(warp)
      */
-    __device__ void AppendToStructure(const unsigned &fieldId, const CheckersState &state);
+    D void AppendToStructure(const unsigned &fieldId, const CheckersState &state);
 };
 
 constexpr size_t SharedMemorySize = sizeof(LegalTakeMovesSubStateMap) + sizeof(ResultLegalActionSpace);

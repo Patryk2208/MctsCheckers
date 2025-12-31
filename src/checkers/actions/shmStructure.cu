@@ -4,13 +4,13 @@
 
 #include <checkers/actions/shmStructure.cuh>
 
-bool SubStatesPerFieldStructure::ReadNextFromStructure(CheckersState &state) {
+D bool SubStatesPerFieldStructure::ReadNextFromStructure(CheckersState &state) {
     if (size_ == 0) return false;
     state = buffer_[--size_];
     return true;
 }
 
-void SubStatesPerFieldStructure::WriteToStructure(const unsigned &fieldId, const CheckersState &state) {
+D void SubStatesPerFieldStructure::WriteToStructure(const unsigned &fieldId, const CheckersState &state) {
     const auto activeMask = __activemask();
     const auto writeCount = __popc(activeMask);
     //here we count how many threads are with index smaller that the current, for active 0, 1, 4, 5 and for thread 4
@@ -24,14 +24,14 @@ void SubStatesPerFieldStructure::WriteToStructure(const unsigned &fieldId, const
 }
 
 
-void LegalTakeMovesSubStateMap::SwapDataStructures() {
+D void LegalTakeMovesSubStateMap::SwapDataStructures() {
     const auto temp = readStructures_;
     readStructures_ = writeStructures_;
     writeStructures_ = temp;
 }
 
 
-void ResultLegalActionSpace::AppendToStructure(const unsigned &fieldId, const CheckersState &state) {
+D void ResultLegalActionSpace::AppendToStructure(const unsigned &fieldId, const CheckersState &state) {
     const auto activeMask = __activemask();
     const auto writeCount = __popc(activeMask);
     //here we count how many threads are with index smaller that the current, for active 0, 1, 4, 5 and for thread 4

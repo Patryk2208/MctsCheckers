@@ -4,7 +4,7 @@
 
 #include <checkers/actions/actions.cuh>
 
-__global__ void CheckTerminal(int batchSize, BatchSoACheckersState *states, float *results, bool *terminal) {
+GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float *results, bool *terminal) {
     const auto threadId = gridDim.x * blockDim.x + threadIdx.x;
     if (threadId >= batchSize) return;
 
@@ -27,8 +27,9 @@ __global__ void CheckTerminal(int batchSize, BatchSoACheckersState *states, floa
 }
 
 //todo consider eliminating the IF branches with some ugly conditional numerics
-__global__ void GetLegalActions(const size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions) {
-    extern __shared__ void* sharedMemory;
+GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions) {
+    extern __shared__ char shm[];
+    const auto sharedMemory = (void*)shm;
     const auto subStateDataStructure = (LegalTakeMovesSubStateMap*)sharedMemory;
     const auto resultActionSpace = (ResultLegalActionSpace*)(sharedMemory + batchSize * sizeof(LegalTakeMovesSubStateMap));
     __syncthreads();
@@ -63,48 +64,5 @@ __global__ void GetLegalActions(const size_t batchSize, const BatchSoACheckersSt
     while (copyCounter < boardResultActionSpace.size_) {
         actions->actions_[boardId].AppendToStructure(fieldId, boardResultActionSpace.buffer_[copyCounter]);
         copyCounter++;
-    }
-}
-
-template<Players player>
-__device__ void InitializeDataStructure(
-    const unsigned &fieldId,
-    const CheckersState& state,
-    LegalTakeMovesSubStateMap& boardSubStateMap) {
-    const auto fieldMask = 1 << fieldId;
-    if constexpr (player == WhitePlayer) {
-        if (state.whitePawns_ & fieldMask || state.whiteQueens_ & fieldMask) {
-            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
-        }
-    }
-    else {
-        if (state.blackPawns_ & fieldMask || state.blackQueens_ & fieldMask) {
-            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
-        }
-    }
-    boardSubStateMap.SwapDataStructures();
-}
-
-template<Players player>
-__device__ void DiscoverActions(
-    const unsigned &fieldId,
-    const CheckersState& originalState,
-    LegalTakeMovesSubStateMap& boardSubStateMap,
-    SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace) {
-
-    //take-moves section
-    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-    GetLegalQueenTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
-
-    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-    GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
-    if (boardResultActionSpace.size_ == 0) {
-        //normal moves section
-        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-        GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
-
-        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-        GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
     }
 }

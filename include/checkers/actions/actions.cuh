@@ -4,7 +4,6 @@
 #ifndef MCTS_CHECKERS_ACTIONS_CUH
 #define MCTS_CHECKERS_ACTIONS_CUH
 
-#include <tocpuwb/batchExecutor.cuh>
 #include <checkers/actions/phaseFunctions.cuh>
 #include <checkers/actions/directionFunctions.cuh>
 #include <checkers/actions/helperFunctions.cuh>
@@ -19,7 +18,7 @@
  * @param results
  * @param terminal
  */
-__global__ void CheckTerminal(int batchSize, BatchSoACheckersState *states, float* results, bool* terminal);
+GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float* results, bool* terminal);
 
 /**
  * Calculates all legal actions into a result array
@@ -33,22 +32,50 @@ __global__ void CheckTerminal(int batchSize, BatchSoACheckersState *states, floa
  * @param states
  * @param actions
  */
-__global__ void GetLegalActions(size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions);
+GLOBAL void GetLegalActions(size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions);
+
 
 template<Players player>
-__device__ void InitializeDataStructure(
+D void InitializeDataStructure(
     const unsigned &fieldId,
     const CheckersState& state,
-    LegalTakeMovesSubStateMap& boardSubStateMap);
+    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    const auto fieldMask = 1 << fieldId;
+    if constexpr (player == WhitePlayer) {
+        if (state.whitePawns_ & fieldMask || state.whiteQueens_ & fieldMask) {
+            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
+        }
+    }
+    else {
+        if (state.blackPawns_ & fieldMask || state.blackQueens_ & fieldMask) {
+            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
+        }
+    }
+    boardSubStateMap.SwapDataStructures();
+}
 
 template<Players player>
-__device__ void DiscoverActions(
+D void DiscoverActions(
     const unsigned &fieldId,
     const CheckersState& originalState,
     LegalTakeMovesSubStateMap& boardSubStateMap,
     SubStatesPerFieldStructure& fieldSubStateReadStructure,
-    ResultLegalActionSpace& boardResultActionSpace);
+    ResultLegalActionSpace& boardResultActionSpace) {
 
+    //take-moves section
+    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
+    GetLegalQueenTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
 
+    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
+    GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    if (boardResultActionSpace.size_ == 0) {
+        //normal moves section
+        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
+        GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+
+        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
+        GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    }
+}
 
 #endif //MCTS_CHECKERS_ACTIONS_CUH

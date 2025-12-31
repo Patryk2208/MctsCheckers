@@ -7,6 +7,7 @@
 
 #include <string>
 #include <stdexcept>
+#include <cuda_runtime.h>
 
 /*
  * Macros for elegant cuda error handling
