@@ -9,6 +9,10 @@
 #include <checkers/actions/helperFunctions.cuh>
 #include <checkers/actions/shmStructure.cuh>
 
+#include "checkers/deviceResources/batchActionSpace.cuh"
+#include "checkers/deviceResources/batchCheckerState.cuh"
+#include "checkers/deviceResources/batchSimulationResults.cuh"
+
 /**
  * Checks if a state of the board is terminal, also if the state is not terminal, checks if it's a knows winning,
  * drawing or losing state, if not continues.
@@ -18,7 +22,7 @@
  * @param results
  * @param terminal
  */
-GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float* results, bool* terminal);
+GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateDevice *states, BatchSimulationResultsDevice* results, bool* terminal);
 
 /**
  * Calculates all legal actions into a result array
@@ -32,23 +36,42 @@ GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float* r
  * @param states
  * @param actions
  */
-GLOBAL void GetLegalActions(size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions);
+GLOBAL void GetLegalActions(size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions);
 
 
 template<Players player>
-D void InitializeDataStructure(
+D void InitializeDataStructureForQueens(
     const unsigned &fieldId,
     const CheckersState& state,
-    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    LegalMovesSubStateMap& boardSubStateMap) {
     const auto fieldMask = 1 << fieldId;
     if constexpr (player == WhitePlayer) {
-        if (state.whitePawns_ & fieldMask || state.whiteQueens_ & fieldMask) {
-            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
+        if (state.whiteQueens_ & fieldMask) {
+            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
         }
     }
     else {
-        if (state.blackPawns_ & fieldMask || state.blackQueens_ & fieldMask) {
-            boardSubStateMap.writeStructures_[fieldId].WriteToStructure(fieldId, state);
+        if (state.blackQueens_ & fieldMask) {
+            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+        }
+    }
+    boardSubStateMap.SwapDataStructures();
+}
+
+template<Players player>
+D void InitializeDataStructureForPawns(
+    const unsigned &fieldId,
+    const CheckersState& state,
+    LegalMovesSubStateMap& boardSubStateMap) {
+    const auto fieldMask = 1 << fieldId;
+    if constexpr (player == WhitePlayer) {
+        if (state.whitePawns_ & fieldMask) {
+            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+        }
+    }
+    else {
+        if (state.blackPawns_ & fieldMask) {
+            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
         }
     }
     boardSubStateMap.SwapDataStructures();
@@ -58,23 +81,34 @@ template<Players player>
 D void DiscoverActions(
     const unsigned &fieldId,
     const CheckersState& originalState,
-    LegalTakeMovesSubStateMap& boardSubStateMap,
-    SubStatesPerFieldStructure& fieldSubStateReadStructure,
+    LegalMovesSubStateMap& boardSubStateMap,
     ResultLegalActionSpace& boardResultActionSpace) {
 
     //take-moves section
-    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-    GetLegalQueenTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    InitializeDataStructureForQueens<player>(fieldId, originalState, boardSubStateMap);
+    Template_syncwarp();
+    GetLegalQueenTakeMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
+    Template_syncwarp();
 
-    InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-    GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+    InitializeDataStructureForPawns<player>(fieldId, originalState, boardSubStateMap);
+    Template_syncwarp();
+    GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
+    Template_syncwarp();
     if (boardResultActionSpace.size_ == 0) {
         //normal moves section
-        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-        GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+        InitializeDataStructureForQueens<player>(fieldId, originalState, boardSubStateMap);
+        Template_syncwarp();
+        GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
+        Template_syncwarp();
 
-        InitializeDataStructure<player>(fieldId, originalState, boardSubStateMap);
-        GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+        PrintShmStructureForBoard(fieldId, boardSubStateMap);
+        Template_syncwarp();
+        InitializeDataStructureForPawns<player>(fieldId, originalState, boardSubStateMap);
+        PrintShmStructureForBoard(fieldId, boardSubStateMap);
+        Template_syncwarp();
+        GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
+        PrintShmStructureForBoard(fieldId, boardSubStateMap);
+        Template_syncwarp();
     }
 }
 

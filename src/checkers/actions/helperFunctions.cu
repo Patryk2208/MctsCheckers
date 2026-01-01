@@ -2,6 +2,7 @@
 // Created by patryk on 12/31/25.
 //
 
+#include <iostream>
 #include <checkers/actions/helperFunctions.cuh>
 
 
@@ -20,13 +21,13 @@ D bool CheckQueenTakeMoveForMask(
     const auto isOpponentTaken = ((opponentPawns & takenMask) || (opponentQueens & takenMask));
     const auto isDestinationFree = !(opponentPawns & destinationMask || opponentQueens & destinationMask || pawns & destinationMask || queens & destinationMask);
     if (isOpponentTaken && isDestinationFree) {
-        queens &= !originMask;
+        queens &= ~originMask;
         queens |= destinationMask;
         if (opponentPawns & takenMask) {
-            opponentPawns &= !takenMask;
+            opponentPawns &= ~takenMask;
         }
         else {
-            opponentQueens &= !takenMask;
+            opponentQueens &= ~takenMask;
         }
         return true;
     }
@@ -44,13 +45,13 @@ D bool CheckPawnTakeMoveForMask(
     const auto isOpponentTaken = ((opponentPawns & takenMask) || (opponentQueens & takenMask));
     const auto isDestinationFree = !(opponentPawns & destinationMask || opponentQueens & destinationMask || pawns & destinationMask || queens & destinationMask);
     if (isOpponentTaken && isDestinationFree) {
-        pawns &= !originMask;
+        pawns &= ~originMask;
         pawns |= destinationMask;
         if (opponentPawns & takenMask) {
-            opponentPawns &= !takenMask;
+            opponentPawns &= ~takenMask;
         }
         else {
-            opponentQueens &= !takenMask;
+            opponentQueens &= ~takenMask;
         }
         return true;
     }
@@ -66,7 +67,7 @@ D bool CheckQueenNormalMoveForMask(
     BoardMap& opponentQueens) {
     const auto isDestinationFree = !(pawns & destinationMask || opponentPawns & destinationMask || queens & destinationMask || opponentQueens & destinationMask);
     if (isDestinationFree) {
-        queens &= !originMask;
+        queens &= ~originMask;
         queens |= destinationMask;
         return true;
     }
@@ -82,9 +83,32 @@ D bool CheckPawnNormalMoveForMask(
     BoardMap& opponentQueens) {
     const auto isDestinationFree = !(pawns & destinationMask || opponentPawns & destinationMask || queens & destinationMask || opponentQueens & destinationMask);
     if (isDestinationFree) {
-        pawns &= !originMask;
+        pawns &= ~originMask;
         pawns |= destinationMask;
         return true;
     }
     return false;
+}
+
+D void PrintShmStructureForBoard(const unsigned &fieldId, const LegalMovesSubStateMap& structure) {
+    printf("Field: %u write structure: %u //", fieldId, structure.writeStructures_[fieldId].size_);
+    for (int i = 0; i < structure.writeStructures_[fieldId].size_; ++i) {
+        printf("%u %u %u %u %u ||| ",
+            structure.writeStructures_[fieldId].buffer_[i].whiteQueens_,
+            structure.writeStructures_[fieldId].buffer_[i].whitePawns_,
+            structure.writeStructures_[fieldId].buffer_[i].blackQueens_,
+            structure.writeStructures_[fieldId].buffer_[i].blackPawns_,
+            structure.writeStructures_[fieldId].buffer_[i].metadata_);
+    }
+    if (fieldId == 0) printf("\n");
+    printf("Field: %u read structure: %u ::", fieldId, structure.readStructures_[fieldId].size_);
+    for (int i = 0; i < structure.readStructures_[fieldId].size_; ++i) {
+        printf("%u %u %u %u %u ||| ",
+            structure.readStructures_[fieldId].buffer_[i].whiteQueens_,
+            structure.readStructures_[fieldId].buffer_[i].whitePawns_,
+            structure.readStructures_[fieldId].buffer_[i].blackQueens_,
+            structure.readStructures_[fieldId].buffer_[i].blackPawns_,
+            structure.readStructures_[fieldId].buffer_[i].metadata_);
+    }
+    if (fieldId == 0) printf("\n\n\n");
 }

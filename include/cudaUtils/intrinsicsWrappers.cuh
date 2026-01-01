@@ -9,7 +9,7 @@
 
 D unsigned Template_activemask();
 
-D void Template_syncwarp(unsigned mask);
+D void Template_syncwarp(unsigned mask = 0xFFFFFFFF);
 
 D int Template_any_sync(unsigned mask, int pred);
 

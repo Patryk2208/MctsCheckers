@@ -8,6 +8,8 @@
 #include <cudaUtils/cudaCompatibility.hpp>
 #include <checkers/state.hpp>
 
+#include "shmStructure.cuh"
+
 using Mask = unsigned int;
 
 D Mask GetMask(const unsigned& originalFieldId, const unsigned& currentFieldId);
@@ -131,5 +133,8 @@ D void AssignSides(
         opponentQueens = state.whiteQueens_;
     }
 }
+
+
+D void PrintShmStructureForBoard(const unsigned &fieldId, const LegalMovesSubStateMap& structure);
 
 #endif //MCTS_CHECKERS_HELPERFUNCTIONS_CUH

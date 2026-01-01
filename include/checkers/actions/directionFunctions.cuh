@@ -36,7 +36,7 @@ template<typename Direction, Players player>
 D void DirectionGetQueenTakeMoves(
     unsigned fieldId,
     CheckersState& next,
-    LegalTakeMovesSubStateMap& boardSubStateMap,
+    LegalMovesSubStateMap& boardSubStateMap,
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
@@ -61,7 +61,7 @@ D void DirectionGetQueenTakeMoves(
                 AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
                 if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                    boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(currentDestinationFieldId, potentialNewSubState);
+                    boardSubStateMap.WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
                     wasPushed = true;
                 }
                 const auto oldDestinationFieldId = currentDestinationFieldId;
@@ -82,7 +82,7 @@ template<typename Direction, Players player>
 D void DirectionGetPawnTakeMoves(
     unsigned fieldId,
     CheckersState& next,
-    LegalTakeMovesSubStateMap& boardSubStateMap,
+    LegalMovesSubStateMap& boardSubStateMap,
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
@@ -101,7 +101,7 @@ D void DirectionGetPawnTakeMoves(
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[takenId].WriteToStructure(takenId, potentialNewSubState);
+            boardSubStateMap.WriteToStructure(fieldId, takenId, potentialNewSubState);
             wasPushed = true;
         }
     }
@@ -112,7 +112,7 @@ template<typename Direction, Players player>
 D void DirectionGetQueenNormalMoves(
     unsigned fieldId,
     CheckersState& next,
-    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    LegalMovesSubStateMap& boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
@@ -138,7 +138,7 @@ D void DirectionGetQueenNormalMoves(
         }
 
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[currentDestinationFieldId].WriteToStructure(currentDestinationFieldId, potentialNewSubState);
+            boardSubStateMap.WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
         }
     }
 }
@@ -147,7 +147,7 @@ template<typename Direction, Players player>
 D void DirectionGetPawnNormalMoves(
     unsigned fieldId,
     CheckersState& next,
-    LegalTakeMovesSubStateMap& boardSubStateMap) {
+    LegalMovesSubStateMap& boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
@@ -163,7 +163,7 @@ D void DirectionGetPawnNormalMoves(
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnNormalMoveForMask(fieldMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.writeStructures_[destinationId].WriteToStructure(destinationId, potentialNewSubState);
+            boardSubStateMap.WriteToStructure(fieldId, destinationId, potentialNewSubState);
         }
     }
 }

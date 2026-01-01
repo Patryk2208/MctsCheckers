@@ -7,7 +7,7 @@
 int main() {
     auto batchSize = 1;
     auto executor = BatchExecutor{};
-    auto batchActions = BatchLegalActions{};
+    auto batchActions = BatchLegalActionsHost(batchSize);
     auto testState = CheckersState
     {
         0b00000000000000000000111111111111,
@@ -17,6 +17,6 @@ int main() {
         0
     };
     auto states = std::vector{testState};
-    auto batchStates = BatchSoACheckersState(states);
+    auto batchStates = BatchSoACheckersStateHost(states);
     executor.Test(batchSize, batchStates, batchActions);
 }

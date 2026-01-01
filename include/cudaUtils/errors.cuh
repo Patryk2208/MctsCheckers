@@ -25,26 +25,26 @@ private:
 
 #define CUDA_CHECK(call) \
 do { \
-cudaError_t error = call; \
-if (error != cudaSuccess) { \
-throw CudaException( \
-std::string("CUDA error: ") + cudaGetErrorString(error) + \
-" (" + std::to_string(error) + ") in " + #call, \
-__FILE__, __LINE__ \
-); \
-} \
+    cudaError_t error = call; \
+    if (error != cudaSuccess) { \
+        throw CudaException( \
+            std::string("CUDA error: ") + cudaGetErrorString(error) + \
+            " (" + std::to_string(error) + ") in " + #call, \
+            __FILE__, __LINE__ \
+        ); \
+    } \
 } while(0)
 
 #define CUDA_CHECK_LAST_ERROR() \
 do { \
-cudaError_t error = cudaGetLastError(); \
-if (error != cudaSuccess) { \
-throw CudaException( \
-std::string("CUDA error: ") + cudaGetErrorString(error) + \
-" (" + std::to_string(error) + ") in ", \
-__FILE__, __LINE__ \
-); \
-} \
+    cudaError_t error = cudaGetLastError(); \
+    if (error != cudaSuccess) { \
+        throw CudaException( \
+            std::string("CUDA error: ") + cudaGetErrorString(error) + \
+            " (" + std::to_string(error) + ") in ", \
+            __FILE__, __LINE__ \
+        ); \
+    } \
 } while(0)
 
 #define KERNEL_CHECK() CUDA_CHECK_LAST_ERROR()

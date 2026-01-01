@@ -9,30 +9,31 @@
 #include <checkers/state.hpp>
 
 //todo optimize those defines
-#define MAX_TAKE_MOVE_SUB_STATES_PER_FIELD 128
-#define MAX_ACTION_COUNT 256
+#define MAX_TAKE_MOVE_SUB_STATES_PER_FIELD 32
+#define MAX_ACTION_COUNT 128
 
 struct SubStatesPerFieldStructure {
     int size_;
     CheckersState buffer_[MAX_TAKE_MOVE_SUB_STATES_PER_FIELD];
+};
+
+struct LegalMovesSubStateMap {
+private:
+    SubStatesPerFieldStructure structures1_[FIELD_COUNT]{};
+    SubStatesPerFieldStructure structures2_[FIELD_COUNT]{};
+public:
+    SubStatesPerFieldStructure* readStructures_ = structures1_;
+    SubStatesPerFieldStructure* writeStructures_ = structures2_;
+
 
     /**
      * One thread reads its buffer pops it
      */
-    D bool ReadNextFromStructure(CheckersState &state);
+    D bool ReadNextFromStructure(const unsigned &fieldId, CheckersState &state) const;
     /**
      * Has to be warp-safe, as multiple threads in a warp can write to other warp's structure at the same time
      */
-    D void WriteToStructure(const unsigned &fieldId, const CheckersState &state);
-};
-
-struct LegalTakeMovesSubStateMap {
-private:
-    SubStatesPerFieldStructure structures1_[FIELD_COUNT];
-    SubStatesPerFieldStructure structures2_[FIELD_COUNT];
-public:
-    SubStatesPerFieldStructure* readStructures_ = structures1_;
-    SubStatesPerFieldStructure* writeStructures_ = structures2_;
+    D void WriteToStructure(const unsigned &fieldId, const unsigned &writeFieldId, const CheckersState &state) const;
 
     D void SwapDataStructures();
 };
@@ -47,6 +48,6 @@ struct ResultLegalActionSpace {
     D void AppendToStructure(const unsigned &fieldId, const CheckersState &state);
 };
 
-constexpr size_t SharedMemorySize = sizeof(LegalTakeMovesSubStateMap) + sizeof(ResultLegalActionSpace);
+constexpr size_t SharedMemorySize = sizeof(LegalMovesSubStateMap) + sizeof(ResultLegalActionSpace);
 
 #endif //MCTS_CHECKERS_SHMSTRUCTURE_CUH

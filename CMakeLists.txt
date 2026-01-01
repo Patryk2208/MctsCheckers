@@ -15,6 +15,12 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 find_package(CUDAToolkit REQUIRED)
 
+set(CMAKE_CUDA_FLAGS_DEBUG "-g -G --source-in-ptx -lineinfo -O0")
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -lineinfo")
+if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+    set(CMAKE_CUDA_HOST_COMPILER /usr/bin/g++)
+endif()
+
 #get_filename_component(CUDA_INCLUDE_DIR "${CUDAToolkit_INCLUDE_DIRS}" ABSOLUTE)
 ####set(CUDA_cuda_driver_LIBRARY "/usr/lib64/libcuda.so" CACHE FILEPATH "Override stub library" FORCE)
 
@@ -31,6 +37,9 @@ set(SOURCES
         src/checkers/actions/helperFunctions.cu
         src/checkers/actions/shmStructure.cu
         src/cudaUtils/intrinsicsWrappers.cu
+        src/checkers/deviceResources/batchActionSpace.cu
+        src/checkers/deviceResources/batchCheckerState.cu
+        src/checkers/deviceResources/batchSimulationResults.cu
 )
 
 add_executable(MCTS ${SOURCES})

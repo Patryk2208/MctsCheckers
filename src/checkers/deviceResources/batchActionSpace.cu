@@ -1,0 +1,22 @@
+//
+// Created by patryk on 1/1/26.
+//
+
+#include <checkers/deviceResources/batchActionSpace.cuh>
+
+H BatchLegalActionsResource::BatchLegalActionsResource(const size_t size) : self_(1), actions_(size) {
+    const BatchLegalActionsDevice selfCopy
+    {
+        actions_.get()
+    };
+    CUDA_CHECK(cudaMemcpy(self_.get(), &selfCopy, self_.getRawSize(), cudaMemcpyHostToDevice));
+}
+
+H BatchLegalActionsHost::BatchLegalActionsHost(const size_t size) {
+    actions_ = new ResultLegalActionSpace[size];
+}
+
+H BatchLegalActionsHost::~BatchLegalActionsHost() {
+    delete[] actions_;
+}
+

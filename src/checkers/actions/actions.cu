@@ -2,9 +2,10 @@
 // Created by patryk on 12/28/25.
 //
 
+#include <cstdint>
 #include <checkers/actions/actions.cuh>
 
-GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float *results, bool *terminal) {
+GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateHost *states, float *results, bool *terminal) {
     const auto threadId = gridDim.x * blockDim.x + threadIdx.x;
     if (threadId >= batchSize) return;
 
@@ -27,19 +28,33 @@ GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersState *states, float *r
 }
 
 //todo consider eliminating the IF branches with some ugly conditional numerics
-GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersState *states, BatchLegalActions *actions) {
+GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions) {
     extern __shared__ char shm[];
-    const auto sharedMemory = (void*)shm;
+
+    auto ptr = reinterpret_cast<uintptr_t>(shm);
+    ptr = (ptr + alignof(LegalMovesSubStateMap) - 1) & ~(alignof(LegalMovesSubStateMap) - 1);
+    auto* subStateDataStructure = reinterpret_cast<LegalMovesSubStateMap*>(ptr);
+
+    ptr += batchSize * sizeof(LegalMovesSubStateMap);
+    ptr = (ptr + alignof(ResultLegalActionSpace) - 1) & ~(alignof(ResultLegalActionSpace) - 1);
+    auto* resultActionSpace = reinterpret_cast<ResultLegalActionSpace*>(ptr);
+
+    /*const auto sharedMemory = (void*)shm;
     const auto subStateDataStructure = (LegalTakeMovesSubStateMap*)sharedMemory;
-    const auto resultActionSpace = (ResultLegalActionSpace*)(sharedMemory + batchSize * sizeof(LegalTakeMovesSubStateMap));
+    const auto resultActionSpace = (ResultLegalActionSpace*)(sharedMemory + batchSize * sizeof(LegalTakeMovesSubStateMap));*/
     __syncthreads();
 
-    const auto threadId = gridDim.x * blockDim.x + threadIdx.x;
+    const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
     const unsigned fieldId = threadId % 32;
-    const auto boardId = threadId / 32;
+    const auto boardId = threadId / 32; //todo wrong for many blocks
+
+    if (fieldId == 0) {
+        subStateDataStructure[boardId] = LegalMovesSubStateMap{};
+        resultActionSpace[boardId] = ResultLegalActionSpace{};
+    }
+    __syncthreads();
 
     auto boardSubStateMap = subStateDataStructure[boardId];
-    auto fieldSubStateReadStructure = boardSubStateMap.readStructures_[fieldId];
     auto boardResultActionSpace = resultActionSpace[boardId];
 
     const CheckersState boardState
@@ -53,10 +68,10 @@ GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersState 
 
     //we are not diverging here, because each warp is one board and the player is common across fields in one board
     if (states->metadata_[boardId] & 0b10000000) {
-        DiscoverActions<BlackPlayer>(fieldId, boardState, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+        DiscoverActions<BlackPlayer>(fieldId, boardState, boardSubStateMap, boardResultActionSpace);
     }
     else {
-        DiscoverActions<WhitePlayer>(fieldId, boardState, boardSubStateMap, fieldSubStateReadStructure, boardResultActionSpace);
+        DiscoverActions<WhitePlayer>(fieldId, boardState, boardSubStateMap, boardResultActionSpace);
     }
 
     __syncthreads();

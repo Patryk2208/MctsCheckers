@@ -38,6 +38,6 @@ D unsigned GetBottomRightDirection::GetId(const unsigned &fieldId) {
     //the field is valid <=> (fieldId % 4 != 3 or fieldId / 4 % 2 == 0) and fieldId > 3 (not bottom row)
     const auto isRowEven = ~(fieldId >> 2) & 1;
     const auto column = fieldId & 3;
-    const unsigned isValid = (column != 0 | isRowEven) & (fieldId > 3);
+    const unsigned isValid = (column != 3 | isRowEven) & (fieldId > 3);
     return fieldId - isValid * (3 + isRowEven);
 }
