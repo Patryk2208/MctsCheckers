@@ -28,6 +28,7 @@ GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateHost *states, floa
 }
 
 //todo consider eliminating the IF branches with some ugly conditional numerics
+#pragma nv_exec_check_disable
 GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions) {
     extern __shared__ char shm[];
 
@@ -38,24 +39,24 @@ GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersStateD
     ptr += batchSize * sizeof(LegalMovesSubStateMap);
     ptr = (ptr + alignof(ResultLegalActionSpace) - 1) & ~(alignof(ResultLegalActionSpace) - 1);
     auto* resultActionSpace = reinterpret_cast<ResultLegalActionSpace*>(ptr);
-
-    /*const auto sharedMemory = (void*)shm;
-    const auto subStateDataStructure = (LegalTakeMovesSubStateMap*)sharedMemory;
-    const auto resultActionSpace = (ResultLegalActionSpace*)(sharedMemory + batchSize * sizeof(LegalTakeMovesSubStateMap));*/
     __syncthreads();
 
     const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned fieldId = threadId % 32;
-    const auto boardId = threadId / 32; //todo wrong for many blocks
+    const unsigned fieldId = threadId % FIELD_COUNT;
+    const auto boardId = threadId / FIELD_COUNT; //todo wrong for many blocks
+
+    const auto boardSubStateMap = subStateDataStructure + boardId;
+    auto boardResultActionSpace = resultActionSpace + boardId;
 
     if (fieldId == 0) {
-        subStateDataStructure[boardId] = LegalMovesSubStateMap{};
-        resultActionSpace[boardId] = ResultLegalActionSpace{};
+        *boardSubStateMap = LegalMovesSubStateMap{};
+        boardSubStateMap->readStructures_ = boardSubStateMap->structures1_;
+        boardSubStateMap->writeStructures_ = boardSubStateMap->structures2_;
+        *boardResultActionSpace = ResultLegalActionSpace{};
     }
+    boardSubStateMap->structures1_[fieldId].size_ = 0;
+    boardSubStateMap->structures2_[fieldId].size_ = 0;
     __syncthreads();
-
-    auto boardSubStateMap = subStateDataStructure[boardId];
-    auto boardResultActionSpace = resultActionSpace[boardId];
 
     const CheckersState boardState
     {
@@ -76,8 +77,8 @@ GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersStateD
 
     __syncthreads();
     auto copyCounter = fieldId;
-    while (copyCounter < boardResultActionSpace.size_) {
-        actions->actions_[boardId].AppendToStructure(fieldId, boardResultActionSpace.buffer_[copyCounter]);
-        copyCounter++;
+    while (copyCounter < boardResultActionSpace->size_) {
+        actions->actions_[boardId].AppendToStructure(fieldId, boardResultActionSpace->buffer_[copyCounter]);
+        copyCounter += FIELD_COUNT;
     }
 }

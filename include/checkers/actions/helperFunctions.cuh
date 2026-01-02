@@ -21,10 +21,10 @@ D bool CheckQueenTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
     const Mask &destinationMask,
-    BoardMap &pawns,
-    BoardMap &queens,
-    BoardMap &opponentPawns,
-    BoardMap &opponentQueens);
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens);
 
 /**
  * Only if we are sure there is our pawn at originMask
@@ -33,10 +33,10 @@ D bool CheckPawnTakeMoveForMask(
     const Mask &originMask,
     const Mask &takenMask,
     const Mask &destinationMask,
-    BoardMap &pawns,
-    BoardMap &queens,
-    BoardMap &opponentPawns,
-    BoardMap &opponentQueens);
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens);
 
 /**
  * Only if we are sure there is our queen at originMask
@@ -44,10 +44,10 @@ D bool CheckPawnTakeMoveForMask(
 D bool CheckQueenNormalMoveForMask(
     const Mask &originMask,
     const Mask& destinationMask,
-    BoardMap &pawns,
-    BoardMap &queens,
-    BoardMap& opponentPawns,
-    BoardMap& opponentQueens);
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens);
 
 /**
  * Only if we are sure there is our pawn at originMask
@@ -55,10 +55,10 @@ D bool CheckQueenNormalMoveForMask(
 D bool CheckPawnNormalMoveForMask(
     const Mask &originMask,
     const Mask& destinationMask,
-    BoardMap &pawns,
-    BoardMap &queens,
-    BoardMap& opponentPawns,
-    BoardMap& opponentQueens);
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens);
 
 
 
@@ -115,26 +115,27 @@ D void CompletePawnNormalMove(const unsigned &fieldId, CheckersState &state) {
 
 template<Players player>
 D void AssignSides(
-    const CheckersState &state,
-    BoardMap &pawns,
-    BoardMap &queens,
-    BoardMap &opponentPawns,
-    BoardMap &opponentQueens) {
+    CheckersState &state,
+    BoardMap *&pawns,
+    BoardMap *&queens,
+    BoardMap *&opponentPawns,
+    BoardMap *&opponentQueens) {
     if constexpr (player == WhitePlayer) {
-        pawns = state.whitePawns_;
-        queens = state.whiteQueens_;
-        opponentPawns = state.blackPawns_;
-        opponentQueens = state.blackQueens_;
+        pawns = &state.whitePawns_;
+        queens = &state.whiteQueens_;
+        opponentPawns = &state.blackPawns_;
+        opponentQueens = &state.blackQueens_;
     }
     else {
-        pawns = state.blackPawns_;
-        queens = state.blackPawns_;
-        opponentPawns = state.whitePawns_;
-        opponentQueens = state.whiteQueens_;
+        pawns = &state.blackPawns_;
+        queens = &state.blackPawns_;
+        opponentPawns = &state.whitePawns_;
+        opponentQueens = &state.whiteQueens_;
     }
 }
 
 
-D void PrintShmStructureForBoard(const unsigned &fieldId, const LegalMovesSubStateMap& structure);
+D void PrintShmStructureForBoard(const unsigned &fieldId, const LegalMovesSubStateMap *structure);
+D void PrintShmResultsForBoard(const unsigned &fieldId, const ResultLegalActionSpace *structure);
 
 #endif //MCTS_CHECKERS_HELPERFUNCTIONS_CUH

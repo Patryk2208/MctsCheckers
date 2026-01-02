@@ -14,8 +14,8 @@
 template<Players player>
 D void GetLegalQueenTakeMoves(
     const unsigned &fieldId,
-    LegalMovesSubStateMap& boardSubStateMap,
-    ResultLegalActionSpace& boardResultActionSpace) {
+    LegalMovesSubStateMap *const boardSubStateMap,
+    ResultLegalActionSpace *const boardResultActionSpace) {
 
     auto roundCounter = 0;
     while (true) {
@@ -23,7 +23,7 @@ D void GetLegalQueenTakeMoves(
         auto wasPushedSomewhereElse = false;
         while (true) {
             CheckersState next{};
-            if (!boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+            if (!boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
                 break;
             }
             const auto activeWarps = Template_activemask();
@@ -37,10 +37,11 @@ D void GetLegalQueenTakeMoves(
             Template_syncwarp(activeWarps);
             if (!wasPushedSomewhereElse && roundCounter > 0) {
                 CompleteQueenTakeMove<player>(fieldId, next);
-                boardResultActionSpace.AppendToStructure(fieldId, next);
+                boardResultActionSpace->AppendToStructure(fieldId, next);
             }
         }
-        boardSubStateMap.SwapDataStructures();
+        Template_syncwarp();
+        boardSubStateMap->SwapDataStructures(fieldId);
         if (!Template_any_sync(0xffffffff, wasPushedSomewhereElse)) break;
         ++roundCounter;
     }
@@ -49,8 +50,8 @@ D void GetLegalQueenTakeMoves(
 template<Players player>
 D void GetLegalPawnTakeMoves(
     const unsigned &fieldId,
-    LegalMovesSubStateMap& boardSubStateMap,
-    ResultLegalActionSpace& boardResultActionSpace) {
+    LegalMovesSubStateMap *const boardSubStateMap,
+    ResultLegalActionSpace *const boardResultActionSpace) {
 
     auto roundCounter = 0;
     while (true) {
@@ -58,7 +59,7 @@ D void GetLegalPawnTakeMoves(
         auto wasPushedSomewhereElse = false;
         while (true) {
             CheckersState next{};
-            if (!boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+            if (!boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
                 break;
             }
             const auto activeWarps = Template_activemask();
@@ -72,10 +73,11 @@ D void GetLegalPawnTakeMoves(
             Template_syncwarp(activeWarps);
             if (!wasPushedSomewhereElse && roundCounter > 0) {
                 CompletePawnTakeMove<player>(fieldId, next);
-                boardResultActionSpace.AppendToStructure(fieldId, next);
+                boardResultActionSpace->AppendToStructure(fieldId, next);
             }
         }
-        boardSubStateMap.SwapDataStructures();
+        Template_syncwarp();
+        boardSubStateMap->SwapDataStructures(fieldId);
         if (!Template_any_sync(0xffffffff, wasPushedSomewhereElse)) break;
         ++roundCounter;
     }
@@ -84,11 +86,11 @@ D void GetLegalPawnTakeMoves(
 template<Players player>
 D void GetLegalQueenNormalMoves(
     const unsigned &fieldId,
-    LegalMovesSubStateMap& boardSubStateMap,
-    ResultLegalActionSpace& boardResultActionSpace) {
+    LegalMovesSubStateMap *const boardSubStateMap,
+    ResultLegalActionSpace *const boardResultActionSpace) {
 
     CheckersState next{};
-    if (boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+    if (boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
         const auto activeWarps = Template_activemask();
         DirectionGetQueenNormalMoves<GetTopLeftDirection, player>(fieldId, next, boardSubStateMap);
         Template_syncwarp(activeWarps);
@@ -99,25 +101,25 @@ D void GetLegalQueenNormalMoves(
         DirectionGetQueenNormalMoves<GetBottomRightDirection, player>(fieldId, next, boardSubStateMap);
         Template_syncwarp(activeWarps);
     }
-    boardSubStateMap.SwapDataStructures();
-    Template_syncwarp(0xffffffff);
+    Template_syncwarp();
+    boardSubStateMap->SwapDataStructures(fieldId);
     while (true) {
-        if (!boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+        if (!boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
             break;
         }
         CompleteQueenNormalMove<player>(fieldId, next);
-        boardResultActionSpace.AppendToStructure(fieldId, next);
+        boardResultActionSpace->AppendToStructure(fieldId, next);
     }
 }
 
 template<Players player>
 D void GetLegalPawnNormalMoves(
     const unsigned &fieldId,
-    LegalMovesSubStateMap& boardSubStateMap,
-    ResultLegalActionSpace& boardResultActionSpace) {
+    LegalMovesSubStateMap *const boardSubStateMap,
+    ResultLegalActionSpace *const boardResultActionSpace) {
 
     CheckersState next{};
-    if (boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+    if (boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
         const auto activeWarps = Template_activemask();
         if constexpr (player == WhitePlayer) {
             DirectionGetPawnNormalMoves<GetTopLeftDirection, player>(fieldId, next, boardSubStateMap);
@@ -132,14 +134,15 @@ D void GetLegalPawnNormalMoves(
             Template_syncwarp(activeWarps);
         }
     }
-    Template_syncwarp(0xffffffff);
-    boardSubStateMap.SwapDataStructures();
+    Template_syncwarp();
+    boardSubStateMap->SwapDataStructures(fieldId);
+
     while (true) {
-        if (!boardSubStateMap.ReadNextFromStructure(fieldId, next)) {
+        if (!boardSubStateMap->ReadNextFromStructure(fieldId, next)) {
             break;
         }
         CompletePawnNormalMove<player>(fieldId, next);
-        boardResultActionSpace.AppendToStructure(fieldId, next);
+        boardResultActionSpace->AppendToStructure(fieldId, next);
     }
 }
 

@@ -13,7 +13,7 @@ D bool LegalMovesSubStateMap::ReadNextFromStructure(const unsigned &fieldId, Che
 
 D void LegalMovesSubStateMap::WriteToStructure(const unsigned &fieldId, const unsigned &writeFieldId, const CheckersState &state) const {
     auto& [size_, buffer_] = writeStructures_[writeFieldId];
-    //printf("%u, my size is %d\n", fieldId, size_);
+    //printf("%u, my size is %d, im writing to %u\n", fieldId, size_, writeFieldId);
     const auto activeMask = __activemask();
     const auto sameTargetMask = __match_any_sync(activeMask, writeFieldId);
     //here we count how many threads are with index smaller that the current, for active 0, 1, 4, 5 and for thread 4
@@ -24,15 +24,19 @@ D void LegalMovesSubStateMap::WriteToStructure(const unsigned &fieldId, const un
         size_ += __popc(sameTargetMask);
     }
     //auto writtenIndex = writeIndex;
-    //printf("%u wrote at %d with mask %u, the first state is %u, %u, %u, %u, %u\n", fieldId, writtenIndex, sameTargetMask, buffer_[writtenIndex].whiteQueens_, buffer_[writtenIndex].whitePawns_, buffer_[writtenIndex].blackQueens_, buffer_[writtenIndex].blackPawns_, buffer_[writtenIndex].metadata_);
+    //printf("%u wrote to %u at %d with mask %u, the state is %u, %u, %u, %u, %u\n", fieldId, writeFieldId, writtenIndex, sameTargetMask, buffer_[writtenIndex].whiteQueens_, buffer_[writtenIndex].whitePawns_, buffer_[writtenIndex].blackQueens_, buffer_[writtenIndex].blackPawns_, buffer_[writtenIndex].metadata_);
     __syncwarp(activeMask);
 }
 
 
-D void LegalMovesSubStateMap::SwapDataStructures() {
-    const auto temp = readStructures_;
-    readStructures_ = writeStructures_;
-    writeStructures_ = temp;
+D void LegalMovesSubStateMap::SwapDataStructures(const unsigned &fieldId) {
+    const auto activeMask = __activemask();
+    if (fieldId == __ffs(activeMask) - 1) {
+        const auto temp = readStructures_;
+        readStructures_ = writeStructures_;
+        writeStructures_ = temp;
+    }
+    __syncwarp(activeMask);
 }
 
 

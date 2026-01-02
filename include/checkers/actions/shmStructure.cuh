@@ -18,12 +18,10 @@ struct SubStatesPerFieldStructure {
 };
 
 struct LegalMovesSubStateMap {
-private:
-    SubStatesPerFieldStructure structures1_[FIELD_COUNT]{};
-    SubStatesPerFieldStructure structures2_[FIELD_COUNT]{};
-public:
-    SubStatesPerFieldStructure* readStructures_ = structures1_;
-    SubStatesPerFieldStructure* writeStructures_ = structures2_;
+    SubStatesPerFieldStructure structures1_[FIELD_COUNT];
+    SubStatesPerFieldStructure structures2_[FIELD_COUNT];
+    SubStatesPerFieldStructure* readStructures_;
+    SubStatesPerFieldStructure* writeStructures_;
 
 
     /**
@@ -35,7 +33,7 @@ public:
      */
     D void WriteToStructure(const unsigned &fieldId, const unsigned &writeFieldId, const CheckersState &state) const;
 
-    D void SwapDataStructures();
+    D void SwapDataStructures(const unsigned &fieldId);
 };
 
 struct ResultLegalActionSpace {

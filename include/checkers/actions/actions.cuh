@@ -43,46 +43,48 @@ template<Players player>
 D void InitializeDataStructureForQueens(
     const unsigned &fieldId,
     const CheckersState& state,
-    LegalMovesSubStateMap& boardSubStateMap) {
+    LegalMovesSubStateMap *const boardSubStateMap) {
     const auto fieldMask = 1 << fieldId;
     if constexpr (player == WhitePlayer) {
         if (state.whiteQueens_ & fieldMask) {
-            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+            boardSubStateMap->WriteToStructure(fieldId, fieldId, state);
         }
     }
     else {
         if (state.blackQueens_ & fieldMask) {
-            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+            boardSubStateMap->WriteToStructure(fieldId, fieldId, state);
         }
     }
-    boardSubStateMap.SwapDataStructures();
+    Template_syncwarp();
+    boardSubStateMap->SwapDataStructures(fieldId);
 }
 
 template<Players player>
 D void InitializeDataStructureForPawns(
     const unsigned &fieldId,
     const CheckersState& state,
-    LegalMovesSubStateMap& boardSubStateMap) {
+    LegalMovesSubStateMap *const boardSubStateMap) {
     const auto fieldMask = 1 << fieldId;
     if constexpr (player == WhitePlayer) {
         if (state.whitePawns_ & fieldMask) {
-            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+            boardSubStateMap->WriteToStructure(fieldId, fieldId, state);
         }
     }
     else {
         if (state.blackPawns_ & fieldMask) {
-            boardSubStateMap.WriteToStructure(fieldId, fieldId, state);
+            boardSubStateMap->WriteToStructure(fieldId, fieldId, state);
         }
     }
-    boardSubStateMap.SwapDataStructures();
+    Template_syncwarp();
+    boardSubStateMap->SwapDataStructures(fieldId);
 }
 
 template<Players player>
 D void DiscoverActions(
     const unsigned &fieldId,
     const CheckersState& originalState,
-    LegalMovesSubStateMap& boardSubStateMap,
-    ResultLegalActionSpace& boardResultActionSpace) {
+    LegalMovesSubStateMap *const boardSubStateMap,
+    ResultLegalActionSpace *const boardResultActionSpace) {
 
     //take-moves section
     InitializeDataStructureForQueens<player>(fieldId, originalState, boardSubStateMap);
@@ -94,20 +96,16 @@ D void DiscoverActions(
     Template_syncwarp();
     GetLegalPawnTakeMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
     Template_syncwarp();
-    if (boardResultActionSpace.size_ == 0) {
+    if (boardResultActionSpace->size_ == 0) {
         //normal moves section
         InitializeDataStructureForQueens<player>(fieldId, originalState, boardSubStateMap);
         Template_syncwarp();
         GetLegalQueenNormalMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
         Template_syncwarp();
 
-        PrintShmStructureForBoard(fieldId, boardSubStateMap);
-        Template_syncwarp();
         InitializeDataStructureForPawns<player>(fieldId, originalState, boardSubStateMap);
-        PrintShmStructureForBoard(fieldId, boardSubStateMap);
         Template_syncwarp();
         GetLegalPawnNormalMoves<player>(fieldId, boardSubStateMap, boardResultActionSpace);
-        PrintShmStructureForBoard(fieldId, boardSubStateMap);
         Template_syncwarp();
     }
 }

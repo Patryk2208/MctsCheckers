@@ -25,7 +25,7 @@ struct BatchLegalActionsHost {
 
     H BatchLegalActionsHost(size_t size);
     H ~BatchLegalActionsHost();
-    //H void CopyFromGpu(CudaResource<BatchLegalActionsDevice>& resource) const;
+    H void CopyFromGpu(BatchLegalActionsResource& resource);
 };
 
 

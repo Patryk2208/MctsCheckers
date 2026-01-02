@@ -8,6 +8,8 @@
 #include <checkers/actions/helperFunctions.cuh>
 #include <checkers/actions/shmStructure.cuh>
 
+#include "cudaUtils/intrinsicsWrappers.cuh"
+
 struct GetTopLeftDirection {
     D static unsigned GetId(const unsigned &fieldId);
 };
@@ -34,26 +36,25 @@ constexpr bool IsValidDirection =
 
 template<typename Direction, Players player>
 D void DirectionGetQueenTakeMoves(
-    unsigned fieldId,
-    CheckersState& next,
-    LegalMovesSubStateMap& boardSubStateMap,
+    const unsigned &fieldId,
+    const CheckersState &next,
+    LegalMovesSubStateMap *const boardSubStateMap,
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
 
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
-
     auto currentTakenFieldId = Direction::GetId(fieldId);
     auto currentTakenMask = GetMask(fieldId, currentTakenFieldId);
     while (currentTakenMask) {
+        BoardMap* pawns = nullptr;
+        BoardMap* queens = nullptr;
+        BoardMap* opponentPawns = nullptr;
+        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
-        if (opponentPawns & currentTakenMask || opponentQueens & currentTakenMask) {
+        if (*opponentPawns & currentTakenMask || *opponentQueens & currentTakenMask) {
             auto currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
             auto currentDestinationMask = GetMask(currentTakenFieldId, currentDestinationFieldId);
             while (currentDestinationMask) {
@@ -61,7 +62,7 @@ D void DirectionGetQueenTakeMoves(
                 AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
                 if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-                    boardSubStateMap.WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
+                    boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
                     wasPushed = true;
                 }
                 const auto oldDestinationFieldId = currentDestinationFieldId;
@@ -69,7 +70,7 @@ D void DirectionGetQueenTakeMoves(
                 currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);
             }
         }
-        if (pawns & currentTakenMask || queens & currentTakenMask) {
+        if (*pawns & currentTakenMask || *queens & currentTakenMask) {
             break;
         }
         const auto oldTakenFieldId = currentTakenFieldId;
@@ -80,28 +81,27 @@ D void DirectionGetQueenTakeMoves(
 
 template<typename Direction, Players player>
 D void DirectionGetPawnTakeMoves(
-    unsigned fieldId,
-    CheckersState& next,
-    LegalMovesSubStateMap& boardSubStateMap,
+    const unsigned &fieldId,
+    const CheckersState &next,
+    LegalMovesSubStateMap *const boardSubStateMap,
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
-
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
 
     auto takenId = Direction::GetId(fieldId);
     auto takenMask = GetMask(fieldId, takenId);
     auto destinationMask = GetMask(takenId, Direction::GetId(takenId));
 
     if (takenMask && destinationMask) {
+        BoardMap* pawns = nullptr;
+        BoardMap* queens = nullptr;
+        BoardMap* opponentPawns = nullptr;
+        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.WriteToStructure(fieldId, takenId, potentialNewSubState);
+            boardSubStateMap->WriteToStructure(fieldId, takenId, potentialNewSubState);
             wasPushed = true;
         }
     }
@@ -110,60 +110,58 @@ D void DirectionGetPawnTakeMoves(
 
 template<typename Direction, Players player>
 D void DirectionGetQueenNormalMoves(
-    unsigned fieldId,
-    CheckersState& next,
-    LegalMovesSubStateMap& boardSubStateMap) {
+    const unsigned &fieldId,
+    const CheckersState &next,
+    LegalMovesSubStateMap *const boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
 
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
-
     auto currentDestinationFieldId = Direction::GetId(fieldId);
     auto currentDestinationMask = GetMask(fieldId, currentDestinationFieldId);
     while (currentDestinationMask) {
+        BoardMap* pawns = nullptr;
+        BoardMap* queens = nullptr;
+        BoardMap* opponentPawns = nullptr;
+        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
         if (
-            pawns & currentDestinationMask ||
-            opponentPawns & currentDestinationMask ||
-            queens & currentDestinationMask ||
-            opponentQueens & currentDestinationMask
+            *pawns & currentDestinationMask ||
+            *opponentPawns & currentDestinationMask ||
+            *queens & currentDestinationMask ||
+            *opponentQueens & currentDestinationMask
             ) {
             break;
         }
 
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
+            boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
         }
     }
 }
 
 template<typename Direction, Players player>
 D void DirectionGetPawnNormalMoves(
-    unsigned fieldId,
-    CheckersState& next,
-    LegalMovesSubStateMap& boardSubStateMap) {
+    const unsigned &fieldId,
+    const CheckersState &next,
+    LegalMovesSubStateMap *const boardSubStateMap) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
     const Mask fieldMask = 1 << fieldId;
 
-    BoardMap pawns;
-    BoardMap queens;
-    BoardMap opponentPawns;
-    BoardMap opponentQueens;
-
     auto destinationId = Direction::GetId(fieldId);
     auto destinationMask = GetMask(fieldId, destinationId);
     if (destinationMask) {
+        BoardMap* pawns = nullptr;
+        BoardMap* queens = nullptr;
+        BoardMap* opponentPawns = nullptr;
+        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnNormalMoveForMask(fieldMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap.WriteToStructure(fieldId, destinationId, potentialNewSubState);
+            boardSubStateMap->WriteToStructure(fieldId, destinationId, potentialNewSubState);
         }
     }
 }
