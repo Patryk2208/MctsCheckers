@@ -89,9 +89,10 @@ D void DirectionGetPawnTakeMoves(
 
     const Mask fieldMask = 1 << fieldId;
 
-    auto takenId = Direction::GetId(fieldId);
-    auto takenMask = GetMask(fieldId, takenId);
-    auto destinationMask = GetMask(takenId, Direction::GetId(takenId));
+    const auto takenId = Direction::GetId(fieldId);
+    const auto takenMask = GetMask(fieldId, takenId);
+    const auto destinationId = Direction::GetId(takenId);
+    const auto destinationMask = GetMask(takenId, destinationId);
 
     if (takenMask && destinationMask) {
         BoardMap* pawns = nullptr;
@@ -101,7 +102,7 @@ D void DirectionGetPawnTakeMoves(
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
-            boardSubStateMap->WriteToStructure(fieldId, takenId, potentialNewSubState);
+            boardSubStateMap->WriteToStructure(fieldId, destinationId, potentialNewSubState);
             wasPushed = true;
         }
     }
