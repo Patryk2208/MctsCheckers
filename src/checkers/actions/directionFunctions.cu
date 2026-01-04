@@ -41,3 +41,42 @@ D unsigned GetBottomRightDirection::GetId(const unsigned &fieldId) {
     const unsigned isValid = (column != 3 | isRowEven) & (fieldId > 3);
     return fieldId - isValid * (3 + isRowEven);
 }
+
+//todo
+//Simple masks to determine the direction of the last move,
+//we set to the direction in which we just moved, NOT the one from which we arrived to the neighboring field
+D Mask GetTopLeftDirection::GetDirectionSymbol() {
+    return 0x00010000;
+}
+
+D Mask GetTopRightDirection::GetDirectionSymbol() {
+    return 0x00020000;
+}
+
+D Mask GetBottomLeftDirection::GetDirectionSymbol() {
+    return 0x00040000;
+}
+
+D Mask GetBottomRightDirection::GetDirectionSymbol() {
+    return 0x00080000;
+}
+
+//simple functions that check if for the current move, we can take in that direction,
+//only for queen takes to avoid taking 2 pieces along the same diagonal in 2 directions
+D bool GetTopLeftDirection::CanTakeInThatDirection(const BoardMapMetadata &metadata) {
+    auto a = metadata & 0x000f0000;
+    auto b = GetBottomRightDirection::GetDirectionSymbol();
+    return (metadata & 0x000f0000) != GetBottomRightDirection::GetDirectionSymbol();
+}
+
+D bool GetTopRightDirection::CanTakeInThatDirection(const BoardMapMetadata &metadata) {
+    return (metadata & 0x000f0000) != GetBottomLeftDirection::GetDirectionSymbol();
+}
+
+D bool GetBottomLeftDirection::CanTakeInThatDirection(const BoardMapMetadata &metadata) {
+    return (metadata & 0x000f0000) != GetTopRightDirection::GetDirectionSymbol();
+}
+
+D bool GetBottomRightDirection::CanTakeInThatDirection(const BoardMapMetadata &metadata) {
+    return (metadata & 0x000f0000) != GetTopLeftDirection::GetDirectionSymbol();
+}

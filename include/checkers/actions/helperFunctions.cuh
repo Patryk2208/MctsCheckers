@@ -26,6 +26,47 @@ D bool CheckQueenTakeMoveForMask(
     BoardMap *opponentPawns,
     BoardMap *opponentQueens);
 
+D bool CheckForQueenContinuation(
+    const unsigned& fieldId,
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens,
+    BoardMapMetadata *metadata
+    );
+
+template<typename Direction>
+D bool CheckDirectionContinuation(
+    const unsigned &fieldId,
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens) {
+    auto currentTakenFieldId = Direction::GetId(fieldId);
+    auto currentTakenMask = GetMask(fieldId, currentTakenFieldId);
+    while (currentTakenMask) {
+        if (*opponentPawns & currentTakenMask || *opponentQueens & currentTakenMask) {
+            auto currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
+            auto currentDestinationMask = GetMask(currentTakenFieldId, currentDestinationFieldId);
+            if (currentDestinationMask &&
+                !(*opponentPawns & currentDestinationMask ||
+                    *opponentQueens & currentDestinationMask ||
+                    *pawns & currentDestinationMask ||
+                    *queens & currentDestinationMask)){
+                return true;
+            }
+            return false;
+        }
+        if (*pawns & currentTakenMask || *queens & currentTakenMask) {
+            break;
+        }
+        const auto oldTakenFieldId = currentTakenFieldId;
+        currentTakenFieldId = Direction::GetId(currentTakenFieldId);
+        currentTakenMask = GetMask(oldTakenFieldId, currentTakenFieldId);
+    }
+    return false;
+}
+
 /**
  * Only if we are sure there is our pawn at originMask
  */
@@ -66,6 +107,7 @@ template<Players player>
 D void CompleteQueenTakeMove(const unsigned &fieldId, CheckersState &state) {
     state.metadata_ ^= 0b10000000; //changing the turn
     state.metadata_ &= 0b11110000; //resetting the draw count
+    state.metadata_ &= 0b11101111; //resetting the internal direction status
 }
 
 template<Players player>

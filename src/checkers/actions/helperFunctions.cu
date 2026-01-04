@@ -5,6 +5,8 @@
 #include <iostream>
 #include <checkers/actions/helperFunctions.cuh>
 
+#include "checkers/actions/directionFunctions.cuh"
+
 
 D Mask GetMask(const unsigned& originalFieldId, const unsigned& currentFieldId) {
     return currentFieldId == originalFieldId ? 0u : 1u << currentFieldId;
@@ -30,6 +32,37 @@ D bool CheckQueenTakeMoveForMask(
             *opponentQueens &= ~takenMask;
         }
         return true;
+    }
+    return false;
+}
+
+D bool CheckForQueenContinuation(
+    const unsigned &fieldId,
+    BoardMap *pawns,
+    BoardMap *queens,
+    BoardMap *opponentPawns,
+    BoardMap *opponentQueens,
+    BoardMapMetadata *metadata
+    ) {
+    if (GetTopLeftDirection::CanTakeInThatDirection(*metadata)) {
+        if (CheckDirectionContinuation<GetTopLeftDirection>(fieldId, pawns, queens, opponentPawns, opponentQueens)) {
+            return true;
+        }
+    }
+    if (GetTopRightDirection::CanTakeInThatDirection(*metadata)) {
+        if (CheckDirectionContinuation<GetTopRightDirection>(fieldId, pawns, queens, opponentPawns, opponentQueens)) {
+            return true;
+        }
+    }
+    if (GetBottomLeftDirection::CanTakeInThatDirection(*metadata)) {
+        if (CheckDirectionContinuation<GetBottomLeftDirection>(fieldId, pawns, queens, opponentPawns, opponentQueens)) {
+            return true;
+        }
+    }
+    if (GetBottomRightDirection::CanTakeInThatDirection(*metadata)) {
+        if (CheckDirectionContinuation<GetBottomRightDirection>(fieldId, pawns, queens, opponentPawns, opponentQueens)) {
+            return true;
+        }
     }
     return false;
 }

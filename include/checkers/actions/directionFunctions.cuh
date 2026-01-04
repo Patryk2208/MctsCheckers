@@ -12,18 +12,26 @@
 
 struct GetTopLeftDirection {
     D static unsigned GetId(const unsigned &fieldId);
+    D static Mask GetDirectionSymbol();
+    D static bool CanTakeInThatDirection(const BoardMapMetadata& metadata);
 };
 
 struct GetTopRightDirection {
     D static unsigned GetId(const unsigned &fieldId);
+    D static Mask GetDirectionSymbol();
+    D static bool CanTakeInThatDirection(const BoardMapMetadata& metadata);
 };
 
 struct GetBottomLeftDirection {
     D static unsigned GetId(const unsigned &fieldId);
+    D static Mask GetDirectionSymbol();
+    D static bool CanTakeInThatDirection(const BoardMapMetadata& metadata);
 };
 
 struct GetBottomRightDirection {
     D static unsigned GetId(const unsigned &fieldId);
+    D static Mask GetDirectionSymbol();
+    D static bool CanTakeInThatDirection(const BoardMapMetadata& metadata);
 };
 
 template <typename Dir>
@@ -42,11 +50,17 @@ D void DirectionGetQueenTakeMoves(
     bool& wasPushed) {
     static_assert(IsValidDirection<Direction>, "Must be one of the Direction structs");
 
+    auto res = Direction::CanTakeInThatDirection(next.metadata_);
+    if (!Direction::CanTakeInThatDirection(next.metadata_)) {
+        return;
+    }
+
     const Mask fieldMask = 1 << fieldId;
 
     auto currentTakenFieldId = Direction::GetId(fieldId);
     auto currentTakenMask = GetMask(fieldId, currentTakenFieldId);
-    while (currentTakenMask) {
+    auto cannotTakeFurther = false;
+    while (currentTakenMask && !cannotTakeFurther) {
         BoardMap* pawns = nullptr;
         BoardMap* queens = nullptr;
         BoardMap* opponentPawns = nullptr;
@@ -55,6 +69,9 @@ D void DirectionGetQueenTakeMoves(
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
         if (*opponentPawns & currentTakenMask || *opponentQueens & currentTakenMask) {
+            cannotTakeFurther = true;
+            //first only such queen take moves that enable continuation
+            auto continuationMoveCount = 0;
             auto currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
             auto currentDestinationMask = GetMask(currentTakenFieldId, currentDestinationFieldId);
             while (currentDestinationMask) {
@@ -62,15 +79,44 @@ D void DirectionGetQueenTakeMoves(
                 AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
                 if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+                    potentialNewSubState.metadata_ &= 0x11101111;
+                    potentialNewSubState.metadata_ |= Direction::GetDirectionSymbol();
+                    if (CheckForQueenContinuation(currentDestinationFieldId, pawns, queens, opponentPawns, opponentQueens, &potentialNewSubState.metadata_)) {
+                        boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
+                        wasPushed = true;
+                        ++continuationMoveCount;
+                    }
+                }
+                else {
+                    break;
+                }
+                const auto oldDestinationFieldId = currentDestinationFieldId;
+                currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
+                currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);
+            }
+            if (continuationMoveCount > 0) break;
+
+            currentDestinationFieldId = Direction::GetId(currentTakenFieldId);
+            currentDestinationMask = GetMask(currentTakenFieldId, currentDestinationFieldId);
+            while (currentDestinationMask) {
+                potentialNewSubState = next;
+                AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
+
+                if (CheckQueenTakeMoveForMask(fieldMask, currentTakenMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
+                    potentialNewSubState.metadata_ &= 0x11101111;
+                    potentialNewSubState.metadata_ |= Direction::GetDirectionSymbol();
                     boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
                     wasPushed = true;
+                }
+                else {
+                    break;
                 }
                 const auto oldDestinationFieldId = currentDestinationFieldId;
                 currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
                 currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);
             }
         }
-        if (*pawns & currentTakenMask || *queens & currentTakenMask) {
+        else if (*pawns & currentTakenMask || *queens & currentTakenMask) {
             break;
         }
         const auto oldTakenFieldId = currentTakenFieldId;
@@ -127,19 +173,12 @@ D void DirectionGetQueenNormalMoves(
         BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
-
-        if (
-            *pawns & currentDestinationMask ||
-            *opponentPawns & currentDestinationMask ||
-            *queens & currentDestinationMask ||
-            *opponentQueens & currentDestinationMask
-            ) {
-            break;
-        }
-
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
             boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
         }
+        const auto oldDestinationFieldId = currentDestinationFieldId;
+        currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
+        currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);
     }
 }
 
