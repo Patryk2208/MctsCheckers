@@ -57,14 +57,15 @@ D void DirectionGetQueenTakeMoves(
 
     const Mask fieldMask = 1 << fieldId;
 
+    BoardMap* pawns = nullptr;
+    BoardMap* queens = nullptr;
+    BoardMap* opponentPawns = nullptr;
+    BoardMap* opponentQueens = nullptr;
+
     auto currentTakenFieldId = Direction::GetId(fieldId);
     auto currentTakenMask = GetMask(fieldId, currentTakenFieldId);
     auto cannotTakeFurther = false;
     while (currentTakenMask && !cannotTakeFurther) {
-        BoardMap* pawns = nullptr;
-        BoardMap* queens = nullptr;
-        BoardMap* opponentPawns = nullptr;
-        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
 
@@ -135,16 +136,17 @@ D void DirectionGetPawnTakeMoves(
 
     const Mask fieldMask = 1 << fieldId;
 
+    BoardMap* pawns = nullptr;
+    BoardMap* queens = nullptr;
+    BoardMap* opponentPawns = nullptr;
+    BoardMap* opponentQueens = nullptr;
+
     const auto takenId = Direction::GetId(fieldId);
     const auto takenMask = GetMask(fieldId, takenId);
     const auto destinationId = Direction::GetId(takenId);
     const auto destinationMask = GetMask(takenId, destinationId);
 
     if (takenMask && destinationMask) {
-        BoardMap* pawns = nullptr;
-        BoardMap* queens = nullptr;
-        BoardMap* opponentPawns = nullptr;
-        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnTakeMoveForMask(fieldMask, takenMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {
@@ -164,13 +166,14 @@ D void DirectionGetQueenNormalMoves(
 
     const Mask fieldMask = 1 << fieldId;
 
+    BoardMap* pawns = nullptr;
+    BoardMap* queens = nullptr;
+    BoardMap* opponentPawns = nullptr;
+    BoardMap* opponentQueens = nullptr;
+
     auto currentDestinationFieldId = Direction::GetId(fieldId);
     auto currentDestinationMask = GetMask(fieldId, currentDestinationFieldId);
     while (currentDestinationMask) {
-        BoardMap* pawns = nullptr;
-        BoardMap* queens = nullptr;
-        BoardMap* opponentPawns = nullptr;
-        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
@@ -191,13 +194,14 @@ D void DirectionGetPawnNormalMoves(
 
     const Mask fieldMask = 1 << fieldId;
 
+    BoardMap* pawns = nullptr;
+    BoardMap* queens = nullptr;
+    BoardMap* opponentPawns = nullptr;
+    BoardMap* opponentQueens = nullptr;
+
     auto destinationId = Direction::GetId(fieldId);
     auto destinationMask = GetMask(fieldId, destinationId);
     if (destinationMask) {
-        BoardMap* pawns = nullptr;
-        BoardMap* queens = nullptr;
-        BoardMap* opponentPawns = nullptr;
-        BoardMap* opponentQueens = nullptr;
         auto potentialNewSubState = next;
         AssignSides<player>(potentialNewSubState, pawns, queens, opponentPawns, opponentQueens);
         if (CheckPawnNormalMoveForMask(fieldMask, destinationMask, pawns, queens, opponentPawns, opponentQueens)) {

@@ -9,7 +9,7 @@
 #include <checkers/state.hpp>
 
 //todo optimize those defines
-#define MAX_TAKE_MOVE_SUB_STATES_PER_FIELD 8
+#define MAX_TAKE_MOVE_SUB_STATES_PER_FIELD 5
 #define MAX_ACTION_COUNT 64
 
 struct SubStatesPerFieldStructure {

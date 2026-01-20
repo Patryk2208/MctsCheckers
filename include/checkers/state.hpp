@@ -11,8 +11,6 @@
 
 #define FIELD_COUNT 32
 
-struct ResultLegalActionSpace;
-
 enum Players : unsigned {
     WhitePlayer,
     BlackPlayer
@@ -28,9 +26,19 @@ struct CheckersState {
     BoardMap blackQueens_;
     BoardMapMetadata metadata_;
 
-    std::vector<CheckersState> GetLegalActions();
-    float CheckIfTerminal();
     Players GetPlayer();
+
+    bool operator==(const CheckersState& other) const {
+        return whitePawns_   == other.whitePawns_
+            && blackPawns_   == other.blackPawns_
+            && whiteQueens_  == other.whiteQueens_
+            && blackQueens_  == other.blackQueens_
+            && metadata_     == other.metadata_;
+    }
+};
+
+struct GameSequence {
+    std::vector<CheckersState> history_;
 };
 
 #endif //MCTS_CHECKERS_STATE_HPP
