@@ -75,36 +75,23 @@ MctsTocpuwbNode *MctsTocpuwbAlgorithm::Selection(MctsTocpuwbNode* node) const {
     }
 }
 
-/*void MctsTocpuwbAlgorithm::Expansion() {
-    for (const auto& element: batchQueue_.nodes_) {
-        auto node = element.first;
-        auto& childrenStates = element.second;
-        node->children_ = new MctsTocpuwbNode[childrenStates.size()];
-        for (int i = 0; i < childrenStates.size(); i++) {
-            auto child = node->children_[i];
-            child.parent_ = node;
-            child.state_ = childrenStates[i];
-            child.childrenCount_ = 0;
-            child.children_ = nullptr;
-        }
-    }
-}*/
-
 void MctsTocpuwbAlgorithm::ExpansionAndSimulation(MctsTocpuwbNode* node) {
-    batchExecutor_.ParallelFindChildrenAndSimulate(node);
+    const auto seed = time(nullptr);
+    batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
 }
 
 void MctsTocpuwbAlgorithm::Backpropagation(MctsTocpuwbNode* node) {
     auto rewardSum = 0.0f;
-    auto rewardCount = node->childrenCount_;
-    for (int i = 0; i < rewardCount; ++i) {
+    auto rewardCount = 0;
+    for (int i = 0; i < node->childrenCount_; ++i) {
         rewardSum += node->children_[i].reward_;
+        rewardCount += node->children_[i].visitCount_;
     }
     auto parent = node->parent_;
     while (parent != nullptr) {
         parent->reward_ += rewardSum;
         parent->visitCount_ += rewardCount;
-        //todo confirm
+        //todo confirm maybe flip the sum only
         rewardSum = rewardCount - rewardSum; // we have to switch the meaning of the reward for the opponent's turn represented in the parent
         parent = parent->parent_;
     }

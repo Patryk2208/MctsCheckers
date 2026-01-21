@@ -20,7 +20,7 @@ H BatchLegalActionsHost::~BatchLegalActionsHost() {
     delete[] actions_;
 }
 
-void BatchLegalActionsHost::CopyFromGpu(BatchLegalActionsResource &resource) {
+void BatchLegalActionsHost::CopyFromGpu(BatchLegalActionsResource &resource) const {
     CUDA_CHECK(cudaMemcpy(actions_, resource.actions_.get(), resource.actions_.getRawSize(), cudaMemcpyDeviceToHost));
 }
 

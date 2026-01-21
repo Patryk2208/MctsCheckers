@@ -6,7 +6,6 @@
 #define MCTS_CHECKERS_TREE_HPP
 
 #include "checkers/state.hpp"
-#include "tocpuwb/batchQueue.hpp"
 
 //Definition of tocpuwb: Tree On CPU With Batching, description in Spec.md
 
@@ -20,7 +19,7 @@ struct MctsTocpuwbNode {
     CheckersState state_;
 
     //metrics for selection
-    float visitCount_;
+    int visitCount_;
     float reward_;
 };
 

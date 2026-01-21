@@ -3,12 +3,6 @@ set(CMAKE_CUDA_ARCHITECTURES native)
 set(CMAKE_CUDA_COMPILER nvcc)
 project(mcts_checkers LANGUAGES CXX CUDA)
 
-####set(CUDAToolkit_FIND_REQUIRED_CUDA TRUE)
-####set(CUDAToolkit_ROOT "/usr/local/cuda-13.0")
-
-include(CTest)
-enable_testing()
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 20)
@@ -21,6 +15,10 @@ if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
     set(CMAKE_CUDA_HOST_COMPILER /usr/bin/g++)
 endif()
 
+message(STATUS "CUDAToolkit_VERSION: ${CUDAToolkit_VERSION}")
+message(STATUS "CUDAToolkit_INCLUDE_DIRS: ${CUDAToolkit_INCLUDE_DIRS}")
+message(STATUS "CUDAToolkit_LIBRARY_DIR: ${CUDAToolkit_LIBRARY_DIR}")
+
 #get_filename_component(CUDA_INCLUDE_DIR "${CUDAToolkit_INCLUDE_DIRS}" ABSOLUTE)
 ####set(CUDA_cuda_driver_LIBRARY "/usr/lib64/libcuda.so" CACHE FILEPATH "Override stub library" FORCE)
 
@@ -28,8 +26,7 @@ include(FetchContent)
 
 set(SOURCES
         src/main.cpp
-        #src/tocpuwb/mcts.cpp
-        #src/tocpuwb/batchQueue.cpp
+        src/tocpuwb/mcts.cpp
         src/tocpuwb/batchExecutor.cu
         src/checkers/state.cpp
         src/checkers/actions/actions.cu
@@ -48,6 +45,7 @@ target_include_directories(MCTS PUBLIC include)
 
 target_link_libraries(MCTS PRIVATE
         CUDA::cudart
+        CUDA::curand
 )
 
 set_target_properties(MCTS PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 20)

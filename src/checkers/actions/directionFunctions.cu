@@ -4,8 +4,6 @@
 
 #include <checkers/actions/directionFunctions.cuh>
 
-//todo test for each fieldId
-
 D unsigned GetTopLeftDirection::GetId(const unsigned &fieldId) {
     //to get top left we add 3 to a valid field, or 4 when we are in an odd row
     //the field is valid <=> (fieldId % 4 != 0 or fieldId / 4 % 2 == 1) and fieldId < 28(not top row)
@@ -42,7 +40,6 @@ D unsigned GetBottomRightDirection::GetId(const unsigned &fieldId) {
     return fieldId - isValid * (3 + isRowEven);
 }
 
-//todo
 //Simple masks to determine the direction of the last move,
 //we set to the direction in which we just moved, NOT the one from which we arrived to the neighboring field
 D Mask GetTopLeftDirection::GetDirectionSymbol() {

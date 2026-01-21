@@ -3,16 +3,23 @@
 
 #ifndef MCTS_CHECKERS_BATCHEXECUTOR_CUH
 #define MCTS_CHECKERS_BATCHEXECUTOR_CUH
-#include <checkers/actions/actions.cuh>
 
+#include "tocpuwb/tree.hpp"
 #include "checkers/deviceResources/batchActionSpace.cuh"
 #include "checkers/deviceResources/batchCheckerState.cuh"
+#include "checkers/actions/actions.cuh"
+
+#include <bitset>
+#include <iostream>
+#include <curand_kernel.h>
 
 
 struct MctsTocpuwbNode;
 
 class BatchExecutor {
+    int leafParallelismFactor_;
 public:
+    BatchExecutor(int leafParallelismFactor) : leafParallelismFactor_(leafParallelismFactor) {}
     H void Test(size_t size, const BatchSoACheckersStateHost& batch, BatchLegalActionsHost& actions);
     //H void Run(size_t size, BatchSoACheckersState batch, BatchResults results);
     /**
@@ -20,14 +27,16 @@ public:
      * (only those can exist or with all children) finds ALL its children and performs simulation phase for
      * all of them in parallel, ALLOCATES children with simulated values and modifies the node to point at them
      */
-    H static void ParallelFindChildrenAndSimulate(MctsTocpuwbNode* node);
+    H void ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, unsigned long long seed);
 private:
-    H static void FindChildren(const BatchSoACheckersStateHost& batch, BatchLegalActionsHost& actions);
-    H static void Expand(MctsTocpuwbNode *node, const BatchLegalActionsHost& children);
-    H static void Simulate(size_t size, const BatchSoACheckersStateHost& batch, BatchSimulationResultsHost &results);
-    H static void AssignRewards(MctsTocpuwbNode *node, BatchSimulationResultsHost &results);
+    H void InitializeRandomness(size_t batchSize, curandState* randomStates, unsigned long long seed);
+    H void FindChildren(const BatchSoACheckersStateHost& h_batch, const BatchLegalActionsHost& h_actions);
+    H void Expand(MctsTocpuwbNode *node, const BatchLegalActionsHost& h_children);
+    H void Simulate(size_t batchSize, curandState* randomStates, const BatchSoACheckersStateHost& h_batch, BatchSimulationResultsHost &h_results);
+    H void AssignRewards(const MctsTocpuwbNode *node, const BatchSimulationResultsHost &h_results);
 };
 
-GLOBAL void FindChildrenKernel(size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions);
-GLOBAL void SimulateKernel(size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions, BatchSimulationResultsDevice* results);
+GLOBAL void InitializeRandomnessKernel(size_t size, curandState* randomStates, unsigned long long seed);
+GLOBAL void FindChildrenKernel(size_t batchSize, const BatchSoACheckersStateDevice *d_states, BatchLegalActionsDevice *d_actions);
+GLOBAL void SimulateKernel(size_t batchSize, curandState* randomStates, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions, BatchSimulationResultsDevice* results);
 #endif //MCTS_CHECKERS_BATCHEXECUTOR_CUH

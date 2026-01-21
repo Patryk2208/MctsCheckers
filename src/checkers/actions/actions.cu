@@ -5,31 +5,57 @@
 #include <cstdint>
 #include <checkers/actions/actions.cuh>
 
-D void CheckTerminal(int batchSize, const BatchSoACheckersStateHost *states, float *results, bool *terminal) {
-    const auto threadId = gridDim.x * blockDim.x + threadIdx.x;
-    if (threadId >= batchSize) return;
+#define QUEEN_MATERIAL_VALUE 3.0f
+#define PAWN_MATERIAL_VALUE 1.0f
+#define MATERIAL_ADVANTAGE_THRESHOLD 5.0f
 
-    //those should be register bound for each thread(board)
-    const auto whitePawns = states->whitePawns_[threadId];
-    const auto blackPawns = states->blackPawns_[threadId];
-    const auto whiteQueens = states->whiteQueens_[threadId];
-    const auto blackQueens = states->blackQueens_[threadId];
-    const auto metadata = states->metadata_[threadId];
+D void CheckTerminal(size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchSimulationResultsDevice* results, bool* terminal) {
+    const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
+    const auto boardId = threadId / FIELD_COUNT;
+    const auto fieldId = threadId % FIELD_COUNT;
+    if (boardId >= batchSize) return;
 
-    //simple terminal position check
-    auto whiteLoses = whitePawns + whiteQueens == 0;
-    auto blackLoses = blackPawns + blackQueens == 0;
-    auto moveCountDraw = (metadata & 0b00001111) == 0b00001111;
+    auto isGameEnded = false;
+    if (fieldId == 0) {
+        //those should be register bound for each thread(board)
+        const auto wp = states->whitePawns_[boardId];
+        const auto bp = states->blackPawns_[boardId];
+        const auto wq = states->whiteQueens_[boardId];
+        const auto bq = states->blackQueens_[boardId];
+        const auto m = states->metadata_[boardId];
+        const auto isWhiteToMove = m & 256;
+        auto result = 0.0f;
 
-    //advanced result check
-    //todo calculate some position scores
+        //simple terminal position check
+        auto whiteWins = (bp || bq) == 0;
+        auto blackWins = (wp || wq) == 0;
+        auto moveCountDraw = (m & 0b00001111) == 0b00001111;
 
-    //todo write whether terminal and if so, results
+        //advanced result check
+        auto w_material = __popc(wp) * PAWN_MATERIAL_VALUE + __popc(wq) * QUEEN_MATERIAL_VALUE;
+        auto b_material = __popc(bp) * PAWN_MATERIAL_VALUE + __popc(bq) * QUEEN_MATERIAL_VALUE;
+
+        if (whiteWins || w_material - b_material >= MATERIAL_ADVANTAGE_THRESHOLD) {
+            result = isWhiteToMove ? 1.0f : -1.0f;
+            isGameEnded = true;
+        }
+        if (blackWins || b_material - w_material >= MATERIAL_ADVANTAGE_THRESHOLD) {
+            result = isWhiteToMove ? -1.0f : 1.0f;
+            isGameEnded = true;
+        }
+        if (moveCountDraw) {
+            result = 0.0f;
+            isGameEnded = true;
+        }
+        results->results_[boardId] = result;
+    }
+    isGameEnded = __shfl_sync(0xffffffff, isGameEnded, 0);
+    *terminal = isGameEnded;
 }
 
 //todo consider eliminating the IF branches with some ugly conditional numerics
 #pragma nv_exec_check_disable
-GLOBAL void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions) {
+D void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchLegalActionsDevice *actions) {
     auto ptr = reinterpret_cast<uintptr_t>(shm);
     ptr = (ptr + alignof(LegalMovesSubStateMap) - 1) & ~(alignof(LegalMovesSubStateMap) - 1);
     auto* subStateDataStructure = reinterpret_cast<LegalMovesSubStateMap*>(ptr);
@@ -40,8 +66,8 @@ GLOBAL void GetLegalActions(const void* shm, const size_t batchSize, const Batch
     __syncthreads();
 
     const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned fieldId = threadId % FIELD_COUNT;
-    const auto boardId = threadId / FIELD_COUNT; //todo wrong for many blocks
+    const auto fieldId = threadId % FIELD_COUNT;
+    const auto boardId = threadId / FIELD_COUNT;
 
     const auto boardSubStateMap = subStateDataStructure + boardId;
     auto boardResultActionSpace = resultActionSpace + boardId;

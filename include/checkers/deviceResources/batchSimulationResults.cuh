@@ -22,7 +22,9 @@ struct BatchSimulationResultsResource {
 struct BatchSimulationResultsHost {
     float* results_;
 
-    //H void CopyFromGpu(CudaResource<float>& d_results) const;
+    H BatchSimulationResultsHost(size_t size);
+    H ~BatchSimulationResultsHost();
+    H void CopyFromGpu(BatchSimulationResultsResource& resource) const;
 };
 
 #endif //MCTS_CHECKERS_BATCHSIMULATIONRESULTS_CUH

@@ -16,13 +16,14 @@
 /**
  * Checks if a state of the board is terminal, also if the state is not terminal, checks if it's a knows winning,
  * drawing or losing state, if not continues.
- * Uses a thread per state, as end conditions are trivial???
+ * Uses a thread per field on the board, but most threads just do nothing, it's done this way to work inside the same
+ * kernel in a simulationKernel
  * @param batchSize
  * @param states
  * @param results
  * @param terminal
  */
-GLOBAL void CheckTerminal(int batchSize, const BatchSoACheckersStateDevice *states, BatchSimulationResultsDevice* results, bool* terminal);
+D void CheckTerminal(size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchSimulationResultsDevice* results, bool* terminal);
 
 /**
  * Calculates all legal actions into a result array
@@ -36,7 +37,7 @@ GLOBAL void CheckTerminal(int batchSize, const BatchSoACheckersStateDevice *stat
  * @param states
  * @param actions
  */
-GLOBAL void GetLegalActions(const void* shm, size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions);
+D void GetLegalActions(const void* shm, size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchLegalActionsDevice *actions);
 
 
 template<Players player>
