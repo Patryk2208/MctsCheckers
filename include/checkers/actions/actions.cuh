@@ -22,7 +22,7 @@
  * @param results
  * @param terminal
  */
-GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateDevice *states, BatchSimulationResultsDevice* results, bool* terminal);
+GLOBAL void CheckTerminal(int batchSize, const BatchSoACheckersStateDevice *states, BatchSimulationResultsDevice* results, bool* terminal);
 
 /**
  * Calculates all legal actions into a result array
@@ -36,7 +36,7 @@ GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateDevice *states, Ba
  * @param states
  * @param actions
  */
-GLOBAL void GetLegalActions(size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions);
+GLOBAL void GetLegalActions(const void* shm, size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions);
 
 
 template<Players player>

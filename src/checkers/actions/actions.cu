@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <checkers/actions/actions.cuh>
 
-GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateHost *states, float *results, bool *terminal) {
+D void CheckTerminal(int batchSize, const BatchSoACheckersStateHost *states, float *results, bool *terminal) {
     const auto threadId = gridDim.x * blockDim.x + threadIdx.x;
     if (threadId >= batchSize) return;
 
@@ -29,9 +29,7 @@ GLOBAL void CheckTerminal(int batchSize, BatchSoACheckersStateHost *states, floa
 
 //todo consider eliminating the IF branches with some ugly conditional numerics
 #pragma nv_exec_check_disable
-GLOBAL void GetLegalActions(const size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions) {
-    extern __shared__ char shm[];
-
+GLOBAL void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACheckersStateDevice *states, BatchLegalActionsDevice *actions) {
     auto ptr = reinterpret_cast<uintptr_t>(shm);
     ptr = (ptr + alignof(LegalMovesSubStateMap) - 1) & ~(alignof(LegalMovesSubStateMap) - 1);
     auto* subStateDataStructure = reinterpret_cast<LegalMovesSubStateMap*>(ptr);
