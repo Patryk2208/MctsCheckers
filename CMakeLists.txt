@@ -9,8 +9,21 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 find_package(CUDAToolkit REQUIRED)
 
-set(CMAKE_CUDA_FLAGS_DEBUG "-g -G --source-in-ptx -lineinfo -O0")
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -lineinfo")
+#set(CMAKE_CUDA_FLAGS_DEBUG "-g -G --source-in-ptx -lineinfo -O0")
+
+#[[option(BUILD_WITH_DEBUG "Build with device debug (-G) for stepping" ON)
+option(BUILD_WITH_LINEINFO "Build with line info for profiling" ON)
+
+if(BUILD_WITH_DEBUG)
+    message(STATUS "Building with device debug (-G) - WILL BE SLOW!")
+    set(CMAKE_CUDA_FLAGS_DEBUG "-g -G --source-in-ptx -lineinfo -O0")
+elseif(BUILD_WITH_LINEINFO)
+    set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-g -lineinfo")
+else()
+    set(CMAKE_CUDA_FLAGS_DEBUG "-g -O0")
+endif()]]
+
+
 if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
     set(CMAKE_CUDA_HOST_COMPILER /usr/bin/g++)
 endif()

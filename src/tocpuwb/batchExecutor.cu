@@ -5,7 +5,6 @@
 #include "tocpuwb/batchExecutor.cuh"
 
 
-/*
 void BatchExecutor::Test(const size_t size, const BatchSoACheckersStateHost& batch, BatchLegalActionsHost& actions) {
     /*unsigned *a, *res = new unsigned[4];
     int input = 31;
@@ -14,17 +13,18 @@ void BatchExecutor::Test(const size_t size, const BatchSoACheckersStateHost& bat
     CUDA_CHECK(cudaMemcpy(res, a, 4 * sizeof(unsigned), cudaMemcpyDeviceToHost));
     printf("%u -> [%u, %u, %u, %u]\n", input, res[0], res[1], res[2], res[3]);
     delete[] res;
-    return;#1#
+    return;*/
     //TestTest();
     //return;
 
     BatchSoACheckersStateResource d_batch(batch, size);
     BatchLegalActionsResource d_actions(size);
+    BatchSimulationResultsResource d_results(size);
 
     const auto gridSize = 1;
     const auto blockSize = 32;
     const auto shmSize = size * SharedMemorySize;
-    GetLegalActions<<<gridSize, blockSize, shmSize>>>(nullptr, size, d_batch.self_.get(), d_actions.self_.get());
+    SimulateKernel<<<gridSize, blockSize, shmSize>>>(size, nullptr, d_batch.self_.get(), d_actions.self_.get(), d_results.self_.get());
     KERNEL_CHECK();
     actions.CopyFromGpu(d_actions);
     for (auto i = 0; i < size; i++) {
@@ -39,7 +39,6 @@ void BatchExecutor::Test(const size_t size, const BatchSoACheckersStateHost& bat
         std::cout << std::endl;
     }
 }
-*/
 
 
 /**
@@ -50,10 +49,11 @@ void BatchExecutor::Test(const size_t size, const BatchSoACheckersStateHost& bat
  * parallel different simulations for the same state and also the crucial GetLegalActions function is also
  * parallelized, then when the results come, we assign reward_ to each child and finish
  */
-void BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const unsigned long long seed) {
+bool BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const unsigned long long seed) {
     const auto h_nodeSingleBatch = BatchSoACheckersStateHost({node->state_});
     auto h_actions = BatchLegalActionsHost(1);
     FindChildren(h_nodeSingleBatch, h_actions);
+    if (h_actions.actions_->size_ == 0) return false;
 
     Expand(node, h_actions);
 
@@ -69,8 +69,14 @@ void BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const
     const auto h_batch = BatchSoACheckersStateHost(leafParallelStates);
     auto h_results = BatchSimulationResultsHost(batchSize);
     Simulate(batchSize, r_randomStates.get(), h_batch, h_results);
+    /*printf("simulation results:\n");
+    for (auto i = 0; i < batchSize; i++) {
+        printf("%f, ", h_results.results_[i]);
+    }
+    printf("\n");*/
 
     AssignRewards(node, h_results);
+    return true;
 }
 
 void BatchExecutor::InitializeRandomness(const size_t batchSize, curandState* randomStates, const unsigned long long seed) {
@@ -124,19 +130,21 @@ void BatchExecutor::Expand(MctsTocpuwbNode *node, const BatchLegalActionsHost &h
 }
 
 void BatchExecutor::Simulate(const size_t batchSize, curandState* randomStates, const BatchSoACheckersStateHost &h_batch, BatchSimulationResultsHost &h_results) {
-    BatchSoACheckersStateResource r_batch(h_batch, batchSize); //todo error here
+    BatchSoACheckersStateResource r_batch(h_batch, batchSize);
     BatchLegalActionsResource r_actions(batchSize);
     BatchSimulationResultsResource r_results(batchSize);
     constexpr auto threadsPerState = 32;
     const auto stateCount = batchSize;
     const auto totalStates = threadsPerState * stateCount;
     //we can only fit about 6 states in a block at once, due to big shm size(totalShm / SharedMemorySize)
-    constexpr auto statesPerBlock = 6;
+    //for testing we will try 4
+    constexpr auto statesPerBlock = 4;
     constexpr auto blockSize = statesPerBlock * threadsPerState;
     const auto gridSize = (totalStates + blockSize - 1) / blockSize;
     constexpr  auto shmSize = statesPerBlock * SharedMemorySize;
     SimulateKernel<<<gridSize, blockSize, shmSize>>>(batchSize, randomStates, r_batch.self_.get(), r_actions.self_.get(), r_results.self_.get());
     KERNEL_CHECK();
+    CUDA_CHECK(cudaDeviceSynchronize());
     h_results.CopyFromGpu(r_results);
 }
 
@@ -146,7 +154,7 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
     const auto boardId = idx / FIELD_COUNT;
     if (boardId >= batchSize) return;
     auto gameEnd = false;
-    auto randomState = &randomStates[idx];
+    auto randomState = &randomStates[boardId];
     while (true) {
         CheckTerminal(batchSize, states, results, &gameEnd);
         if (gameEnd) {
@@ -154,8 +162,19 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
         }
 
         GetLegalActions(shm, batchSize, states, actions);
+        __syncthreads();
+        /*if (idx % 32 == 0 && boardId == 0) {
+            printf("Action space size id %d:\n", actions->actions_[boardId].size_);
+            for (auto i = 0; i < actions->actions_[boardId].size_; i++) {
+                printf("0x%X || 0x%X || 0x%X || 0x%X || 0x%X\n",
+                    actions->actions_[boardId].buffer_[i].whitePawns_,
+                    actions->actions_[boardId].buffer_[i].whiteQueens_,
+                    actions->actions_[boardId].buffer_[i].blackPawns_,
+                    actions->actions_[boardId].buffer_[i].blackQueens_,
+                    actions->actions_[boardId].buffer_[i].metadata_);
+            }
+        }*/
         //symbol of loss due to lack of moves
-        //if (idx % 32 == 0) printf("size of action space in board %d is %d\n", boardId, actions->actions_[boardId].size_);
         if (actions->actions_[boardId].size_ == 0) {
             if (idx % 32 == 0) {
                 const auto isWhiteToMove = states->metadata_[boardId] & 256;
@@ -164,7 +183,8 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
             return;
         }
         if (idx % 32 == 0) {
-            const auto randomNewStateIndex = curand(randomState) % actions->actions_[boardId].size_;
+            const auto actionSpaceSize = actions->actions_[boardId].size_;
+            const auto randomNewStateIndex = curand(randomState) % actionSpaceSize;
             const auto newState = actions->actions_[boardId].buffer_[randomNewStateIndex];
             states->whitePawns_[boardId] = newState.whitePawns_;
             states->whiteQueens_[boardId] = newState.whiteQueens_;
@@ -172,9 +192,18 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
             states->blackQueens_[boardId] = newState.blackQueens_;
             states->metadata_[boardId] = newState.metadata_;
 
-            actions->actions_[boardId] = ResultLegalActionSpace{};
+            /*if (boardId == 0) {
+                printf("New random state: 0x%X || 0x%X || 0x%X || 0x%X || 0x%X\n\n",
+                        newState.whitePawns_,
+                        newState.whiteQueens_,
+                        newState.blackPawns_,
+                        newState.blackQueens_,
+                        newState.metadata_);
+            }*/
+
+            actions->actions_[boardId].size_ = 0;
+            //actions->actions_[boardId] = ResultLegalActionSpace{};
         }
-        __syncthreads();
     }
 }
 

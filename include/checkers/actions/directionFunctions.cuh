@@ -179,6 +179,9 @@ D void DirectionGetQueenNormalMoves(
         if (CheckQueenNormalMoveForMask(fieldMask, currentDestinationMask, pawns, queens, opponentPawns, opponentQueens)) {
             boardSubStateMap->WriteToStructure(fieldId, currentDestinationFieldId, potentialNewSubState);
         }
+        else {
+            break; //bug fix queen doesnt jump over its pieces anymore
+        }
         const auto oldDestinationFieldId = currentDestinationFieldId;
         currentDestinationFieldId = Direction::GetId(currentDestinationFieldId);
         currentDestinationMask = GetMask(oldDestinationFieldId, currentDestinationFieldId);

@@ -53,8 +53,6 @@ D void CheckTerminal(size_t batchSize, const BatchSoACheckersStateDevice *states
     *terminal = isGameEnded;
 }
 
-//todo consider eliminating the IF branches with some ugly conditional numerics
-#pragma nv_exec_check_disable
 D void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchLegalActionsDevice *actions) {
     const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
     const auto fieldId = threadId % FIELD_COUNT;
@@ -76,11 +74,13 @@ D void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACh
     auto boardResultActionSpace = resultActionSpace + boardIdInBlock;
 
     if (fieldId == 0) {
-        *boardSubStateMap = LegalMovesSubStateMap{};
+        //*boardSubStateMap = LegalMovesSubStateMap{};
         boardSubStateMap->readStructures_ = boardSubStateMap->structures1_;
         boardSubStateMap->writeStructures_ = boardSubStateMap->structures2_;
-        *boardResultActionSpace = ResultLegalActionSpace{};
+        //*boardResultActionSpace = ResultLegalActionSpace{};
+        boardResultActionSpace->size_ = 0;
     }
+    __syncwarp();
     boardSubStateMap->structures1_[fieldId].size_ = 0;
     boardSubStateMap->structures2_[fieldId].size_ = 0;
     __syncthreads();

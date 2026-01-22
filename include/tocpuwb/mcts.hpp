@@ -19,7 +19,7 @@ public:
     bool FindBestMove(GameSequence* game);
 private:
     MctsTocpuwbNode* Selection(MctsTocpuwbNode* node) const;
-    void ExpansionAndSimulation(MctsTocpuwbNode* node);
+    bool ExpansionAndSimulation(MctsTocpuwbNode *node);
     void Backpropagation(MctsTocpuwbNode* node);
 };
 

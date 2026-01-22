@@ -21,13 +21,12 @@ class BatchExecutor {
 public:
     BatchExecutor(int leafParallelismFactor) : leafParallelismFactor_(leafParallelismFactor) {}
     H void Test(size_t size, const BatchSoACheckersStateHost& batch, BatchLegalActionsHost& actions);
-    //H void Run(size_t size, BatchSoACheckersState batch, BatchResults results);
     /**
      * Main function used in the mcts process, takes the one node which does not have any children yet
      * (only those can exist or with all children) finds ALL its children and performs simulation phase for
      * all of them in parallel, ALLOCATES children with simulated values and modifies the node to point at them
      */
-    H void ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, unsigned long long seed);
+    H bool ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, unsigned long long seed);
 private:
     H void InitializeRandomness(size_t batchSize, curandState* randomStates, unsigned long long seed);
     H void FindChildren(const BatchSoACheckersStateHost& h_batch, const BatchLegalActionsHost& h_actions);

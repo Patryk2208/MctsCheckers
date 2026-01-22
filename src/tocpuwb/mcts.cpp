@@ -30,10 +30,11 @@ MctsTocpuwb::~MctsTocpuwb() {
 void MctsTocpuwb::Learn(MctsTocpuwbNode* root) {
     if (root == nullptr) root = root_;
     const auto node = Selection(root);
-    ExpansionAndSimulation(node);
+    if (!ExpansionAndSimulation(node)) return;
     Backpropagation(node);
 }
 
+//todo
 bool MctsTocpuwb::FindBestMove(GameSequence *game) {
     auto node = root_;
     for (const auto state : game->history_) {
@@ -58,15 +59,16 @@ bool MctsTocpuwb::FindBestMove(GameSequence *game) {
         }
     }
     const MctsTocpuwbNode* childWithHighestUcb = nullptr;
-    auto highestUcb = std::numeric_limits<float>::min();
+    auto highestUcb = std::numeric_limits<float>::lowest();
     for (int i = 0; i < node->childrenCount_; i++) {
         const auto child = &node->children_[i];
 
-        const auto ucbExploitation = child->reward_ / child->visitCount_;
-        const auto ucbExploration = c_ * sqrtf(log2f(node->visitCount_) / child->visitCount_);
+        auto ucbExploitation = child->reward_ / child->visitCount_;
+        ucbExploitation = (ucbExploitation + 1.0f) / 2.0f; //normalizing because we operate on [-1, 1] rewards
+        //const auto ucbExploration = c_ * sqrtf(log2f(node->visitCount_) / child->visitCount_);
 
-        if (const auto ucbScore = ucbExploration + ucbExploitation; ucbScore > highestUcb) {
-            highestUcb = ucbScore;
+        if (ucbExploitation > highestUcb) {
+            highestUcb = ucbExploitation;
             childWithHighestUcb = child;
         }
     }
@@ -80,25 +82,49 @@ MctsTocpuwbNode *MctsTocpuwb::Selection(MctsTocpuwbNode* node) const {
             return node;
         }
         MctsTocpuwbNode* childWithHighestUcb = nullptr;
-        auto highestUcb = std::numeric_limits<float>::min();
+        auto highestUcb = std::numeric_limits<float>::lowest();
+        //temp for testing
+        auto avgExploitation = 0.0f;
+        auto avgExploration = 0.0f;
         for (int i = 0; i < node->childrenCount_; i++) {
             const auto child = &node->children_[i];
 
-            const auto ucbExploitation = child->reward_ / child->visitCount_;
-            const auto ucbExploration = c_ * sqrtf(log2f(node->visitCount_) / child->visitCount_);
+            auto ucbExploitation = child->reward_ / child->visitCount_;
+            ucbExploitation = (ucbExploitation + 1.0f) / 2.0f; //normalizing because we operate on [-1, 1] rewards
+            const auto ucbExploration = c_ * sqrtf(logf(node->visitCount_) / child->visitCount_);
+
+            //testing
+            avgExploration += ucbExploration;
+            avgExploitation += ucbExploitation;
 
             if (const auto ucbScore = ucbExploration + ucbExploitation; ucbScore > highestUcb) {
                 highestUcb = ucbScore;
                 childWithHighestUcb = child;
             }
         }
+        //testing
+        avgExploitation /= node->childrenCount_;
+        avgExploration /= node->childrenCount_;
+
         node = childWithHighestUcb;
+
+        //testing
+        printf("[selection] chose state with ecb=%f, averages exploration=%f, exploitation=%f:"
+               "(( 0x%X || 0x%X || 0x%X || 0x%X || 0x%X ))\n",
+            highestUcb,
+            avgExploration,
+            avgExploitation,
+            node->state_.whitePawns_,
+            node->state_.whiteQueens_,
+            node->state_.blackPawns_,
+            node->state_.blackQueens_,
+            node->state_.metadata_);
     }
 }
 
-void MctsTocpuwb::ExpansionAndSimulation(MctsTocpuwbNode* node) {
+bool MctsTocpuwb::ExpansionAndSimulation(MctsTocpuwbNode *node) {
     const auto seed = time(nullptr);
-    batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
+    return batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
 }
 
 void MctsTocpuwb::Backpropagation(MctsTocpuwbNode* node) {
@@ -108,12 +134,14 @@ void MctsTocpuwb::Backpropagation(MctsTocpuwbNode* node) {
         rewardSum += node->children_[i].reward_;
         rewardCount += node->children_[i].visitCount_;
     }
-    auto parent = node->parent_;
+    printf("[backpropagation] original reward is: %f for count %d\n", rewardSum, rewardCount);
+    auto parent = node;
     while (parent != nullptr) {
+        rewardSum *= -1; // we have to switch the meaning of the reward for the opponent's turn
         parent->reward_ += rewardSum;
         parent->visitCount_ += rewardCount;
-        //todo confirm maybe flip the sum only
-        rewardSum = rewardCount - rewardSum; // we have to switch the meaning of the reward for the opponent's turn represented in the parent
         parent = parent->parent_;
+        printf("[backpropagation] reward is: %f for count %d\n", rewardSum, rewardCount);
     }
+    printf("\n\n");
 }
