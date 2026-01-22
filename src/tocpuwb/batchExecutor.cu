@@ -124,7 +124,7 @@ void BatchExecutor::Expand(MctsTocpuwbNode *node, const BatchLegalActionsHost &h
 }
 
 void BatchExecutor::Simulate(const size_t batchSize, curandState* randomStates, const BatchSoACheckersStateHost &h_batch, BatchSimulationResultsHost &h_results) {
-    BatchSoACheckersStateResource r_batch(h_batch, batchSize);
+    BatchSoACheckersStateResource r_batch(h_batch, batchSize); //todo error here
     BatchLegalActionsResource r_actions(batchSize);
     BatchSimulationResultsResource r_results(batchSize);
     constexpr auto threadsPerState = 32;
@@ -132,9 +132,9 @@ void BatchExecutor::Simulate(const size_t batchSize, curandState* randomStates, 
     const auto totalStates = threadsPerState * stateCount;
     //we can only fit about 6 states in a block at once, due to big shm size(totalShm / SharedMemorySize)
     constexpr auto statesPerBlock = 6;
-    const auto blockSize = statesPerBlock * threadsPerState;
+    constexpr auto blockSize = statesPerBlock * threadsPerState;
     const auto gridSize = (totalStates + blockSize - 1) / blockSize;
-    const auto shmSize = statesPerBlock * SharedMemorySize;
+    constexpr  auto shmSize = statesPerBlock * SharedMemorySize;
     SimulateKernel<<<gridSize, blockSize, shmSize>>>(batchSize, randomStates, r_batch.self_.get(), r_actions.self_.get(), r_results.self_.get());
     KERNEL_CHECK();
     h_results.CopyFromGpu(r_results);
@@ -144,6 +144,7 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
     extern __shared__ char shm[];
     const auto idx = threadIdx.x + blockIdx.x * blockDim.x;
     const auto boardId = idx / FIELD_COUNT;
+    if (boardId >= batchSize) return;
     auto gameEnd = false;
     auto randomState = &randomStates[idx];
     while (true) {
@@ -154,6 +155,7 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
 
         GetLegalActions(shm, batchSize, states, actions);
         //symbol of loss due to lack of moves
+        //if (idx % 32 == 0) printf("size of action space in board %d is %d\n", boardId, actions->actions_[boardId].size_);
         if (actions->actions_[boardId].size_ == 0) {
             if (idx % 32 == 0) {
                 const auto isWhiteToMove = states->metadata_[boardId] & 256;
@@ -169,6 +171,8 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
             states->blackPawns_[boardId] = newState.blackPawns_;
             states->blackQueens_[boardId] = newState.blackQueens_;
             states->metadata_[boardId] = newState.metadata_;
+
+            actions->actions_[boardId] = ResultLegalActionSpace{};
         }
         __syncthreads();
     }

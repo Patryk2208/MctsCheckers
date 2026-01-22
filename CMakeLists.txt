@@ -37,6 +37,7 @@ set(SOURCES
         src/checkers/deviceResources/batchActionSpace.cu
         src/checkers/deviceResources/batchCheckerState.cu
         src/checkers/deviceResources/batchSimulationResults.cu
+        src/tocpuwb/serialization.cpp
 )
 
 add_executable(MCTS ${SOURCES})

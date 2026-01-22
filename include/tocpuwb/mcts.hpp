@@ -8,14 +8,14 @@
 #include "batchExecutor.cuh"
 #include "tocpuwb/tree.hpp"
 
-class MctsTocpuwbAlgorithm {
+class MctsTocpuwb {
     MctsTocpuwbNode *root_;
     float c_;
     BatchExecutor batchExecutor_;
 public:
-    MctsTocpuwbAlgorithm();
-    ~MctsTocpuwbAlgorithm();
-    void Learn(MctsTocpuwbNode* node);
+    MctsTocpuwb(float c, int leafParallelizationFactor);
+    ~MctsTocpuwb();
+    void Learn(MctsTocpuwbNode* node = nullptr);
     bool FindBestMove(GameSequence* game);
 private:
     MctsTocpuwbNode* Selection(MctsTocpuwbNode* node) const;

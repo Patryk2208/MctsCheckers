@@ -56,21 +56,24 @@ D void CheckTerminal(size_t batchSize, const BatchSoACheckersStateDevice *states
 //todo consider eliminating the IF branches with some ugly conditional numerics
 #pragma nv_exec_check_disable
 D void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACheckersStateDevice *states, const BatchLegalActionsDevice *actions) {
+    const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
+    const auto fieldId = threadId % FIELD_COUNT;
+    const auto boardId = threadId / FIELD_COUNT;
+    if (boardId >= batchSize) return;
+    const auto boardsPerBlock = blockDim.x / FIELD_COUNT;
+    const auto boardIdInBlock = boardId % boardsPerBlock;
+
     auto ptr = reinterpret_cast<uintptr_t>(shm);
     ptr = (ptr + alignof(LegalMovesSubStateMap) - 1) & ~(alignof(LegalMovesSubStateMap) - 1);
     auto* subStateDataStructure = reinterpret_cast<LegalMovesSubStateMap*>(ptr);
 
-    ptr += batchSize * sizeof(LegalMovesSubStateMap);
+    ptr += boardsPerBlock * sizeof(LegalMovesSubStateMap);
     ptr = (ptr + alignof(ResultLegalActionSpace) - 1) & ~(alignof(ResultLegalActionSpace) - 1);
     auto* resultActionSpace = reinterpret_cast<ResultLegalActionSpace*>(ptr);
     __syncthreads();
 
-    const auto threadId = blockIdx.x * blockDim.x + threadIdx.x;
-    const auto fieldId = threadId % FIELD_COUNT;
-    const auto boardId = threadId / FIELD_COUNT;
-
-    const auto boardSubStateMap = subStateDataStructure + boardId;
-    auto boardResultActionSpace = resultActionSpace + boardId;
+    const auto boardSubStateMap = subStateDataStructure + boardIdInBlock;
+    auto boardResultActionSpace = resultActionSpace + boardIdInBlock;
 
     if (fieldId == 0) {
         *boardSubStateMap = LegalMovesSubStateMap{};
@@ -92,7 +95,7 @@ D void GetLegalActions(const void* shm, const size_t batchSize, const BatchSoACh
     };
 
     //we are not diverging here, because each warp is one board and the player is common across fields in one board
-    if (states->metadata_[boardId] & 0b10000000) {
+    if (boardState.metadata_ & 0b10000000) {
         DiscoverActions<BlackPlayer>(fieldId, boardState, boardSubStateMap, boardResultActionSpace);
     }
     else {

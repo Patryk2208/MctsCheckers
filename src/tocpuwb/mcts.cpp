@@ -6,14 +6,35 @@
 #include <limits>
 #include <cmath>
 
-void MctsTocpuwbAlgorithm::Learn(MctsTocpuwbNode* root = nullptr) {
+MctsTocpuwb::MctsTocpuwb(const float c, const int leafParallelizationFactor) : c_(c), batchExecutor_(leafParallelizationFactor) {
+    root_ = new MctsTocpuwbNode();
+    root_->childrenCount_ = 0;
+    root_->parent_ = nullptr;
+    root_->visitCount_ = 0;
+    root_->reward_ = 0.0f;
+    root_->children_ = nullptr;
+    root_->state_ = CheckersState
+    {
+        0b00000000000000000000111111111111,
+        0b11111111111100000000000000000000,
+        0,
+        0,
+        0 //todo maybe
+    };
+}
+
+MctsTocpuwb::~MctsTocpuwb() {
+    //todo
+}
+
+void MctsTocpuwb::Learn(MctsTocpuwbNode* root) {
     if (root == nullptr) root = root_;
     const auto node = Selection(root);
     ExpansionAndSimulation(node);
     Backpropagation(node);
 }
 
-bool MctsTocpuwbAlgorithm::FindBestMove(GameSequence *game) {
+bool MctsTocpuwb::FindBestMove(GameSequence *game) {
     auto node = root_;
     for (const auto state : game->history_) {
         if (node == nullptr) return false;
@@ -53,7 +74,7 @@ bool MctsTocpuwbAlgorithm::FindBestMove(GameSequence *game) {
     return true;
 }
 
-MctsTocpuwbNode *MctsTocpuwbAlgorithm::Selection(MctsTocpuwbNode* node) const {
+MctsTocpuwbNode *MctsTocpuwb::Selection(MctsTocpuwbNode* node) const {
     while (true) {
         if (node->childrenCount_ == 0) {
             return node;
@@ -75,12 +96,12 @@ MctsTocpuwbNode *MctsTocpuwbAlgorithm::Selection(MctsTocpuwbNode* node) const {
     }
 }
 
-void MctsTocpuwbAlgorithm::ExpansionAndSimulation(MctsTocpuwbNode* node) {
+void MctsTocpuwb::ExpansionAndSimulation(MctsTocpuwbNode* node) {
     const auto seed = time(nullptr);
     batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
 }
 
-void MctsTocpuwbAlgorithm::Backpropagation(MctsTocpuwbNode* node) {
+void MctsTocpuwb::Backpropagation(MctsTocpuwbNode* node) {
     auto rewardSum = 0.0f;
     auto rewardCount = 0;
     for (int i = 0; i < node->childrenCount_; ++i) {
