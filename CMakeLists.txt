@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.31)
 set(CMAKE_CUDA_ARCHITECTURES native)
 set(CMAKE_CUDA_COMPILER nvcc)
-project(mcts_checkers LANGUAGES CXX CUDA)
+project(mcts_checkers LANGUAGES CXX CUDA C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +36,19 @@ message(STATUS "CUDAToolkit_LIBRARY_DIR: ${CUDAToolkit_LIBRARY_DIR}")
 ####set(CUDA_cuda_driver_LIBRARY "/usr/lib64/libcuda.so" CACHE FILEPATH "Override stub library" FORCE)
 
 include(FetchContent)
+FetchContent_Declare(
+        sqlite3
+        URL https://sqlite.org/2026/sqlite-amalgamation-3510200.zip
+)
+FetchContent_MakeAvailable(sqlite3)
+
+add_library(sqlite3 STATIC
+        ${sqlite3_SOURCE_DIR}/sqlite3.c
+)
+
+target_include_directories(sqlite3 PUBLIC
+        ${sqlite3_SOURCE_DIR}
+)
 
 set(SOURCES
         src/main.cpp
@@ -51,6 +64,7 @@ set(SOURCES
         src/checkers/deviceResources/batchCheckerState.cu
         src/checkers/deviceResources/batchSimulationResults.cu
         src/tocpuwb/serialization.cpp
+        src/gameplay.cpp
 )
 
 add_executable(MCTS ${SOURCES})
@@ -60,6 +74,11 @@ target_include_directories(MCTS PUBLIC include)
 target_link_libraries(MCTS PRIVATE
         CUDA::cudart
         CUDA::curand
+        sqlite3
+)
+
+target_compile_definitions(MCTS
+        PRIVATE PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
 set_target_properties(MCTS PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 20)

@@ -6,16 +6,19 @@
 #define MCTS_CHECKERS_MCTS_HPP
 
 #include "batchExecutor.cuh"
+#include "serialization.hpp"
 #include "tocpuwb/tree.hpp"
 
 class MctsTocpuwb {
     MctsTocpuwbNode *root_;
     float c_;
     BatchExecutor batchExecutor_;
+    MctsStorage* storage_;
 public:
-    MctsTocpuwb(float c, int leafParallelizationFactor);
+    MctsTocpuwb(float c, int leafParallelizationFactor, MctsStorage *storage = nullptr);
     ~MctsTocpuwb();
-    void Learn(MctsTocpuwbNode* node = nullptr);
+
+    bool Learn(MctsTocpuwbNode *node = nullptr);
     bool FindBestMove(GameSequence* game);
 private:
     MctsTocpuwbNode* Selection(MctsTocpuwbNode* node) const;
