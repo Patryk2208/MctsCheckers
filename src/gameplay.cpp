@@ -34,7 +34,7 @@ int algebraicToBit(const std::string& alg) {
     char rowChar = alg[1];
 
     int col = colChar - 'a';  // a=0, b=1, ..., h=7
-    int row = 8 - (rowChar - '0');  // '1'->row7, '2'->row6, ..., '8'->row0
+    int row = rowChar - '0';  // '1'->row7, '2'->row6, ..., '8'->row0
 
     // Check if it's a dark square
     if ((row + col) % 2 == 0) {
@@ -58,6 +58,16 @@ int algebraicToBit(const std::string& alg) {
     };
 
     return lookup[row][col];
+}
+
+int algebraicToBit64(const std::string &alg) {
+    if (alg.length() < 2) return -1;
+    char colChar = std::tolower(alg[0]);
+    char rowChar = alg[1];
+
+    int col = colChar - 'a';  // a=0, b=1, ..., h=7
+    int row = rowChar - '0';  // '1'->row7, '2'->row6, ..., '8'->row0
+    return (row - 1) * 8 + col;
 }
 
 // Convert bit position to algebraic
@@ -99,20 +109,13 @@ void displayState(const CheckersState& state) {
     std::cout << "  | A B C D E F G H |\n";
     std::cout << "  +-------------------+";
 
-    for (int row = 0; row < 8; row++) {
-        std::cout << "\n" << (8 - row) << " | ";
+    for (int row = 7; row >= 0; row--) {
+        std::cout << "\n" << row+1 << " | ";
 
         for (int col = 0; col < 8; col++) {
-            // Convert to algebraic
-            const char colChar = 'a' + col;
-            const int rowNum = 8 - row;
-            std::string alg = std::string(1, colChar) + std::to_string(rowNum);
-
-            int bit = algebraicToBit(alg);
-
-            if (bit == -1) {
-                std::cout << "  ";  // Light square (not playable)
-            } else {
+            if ((row % 2 == 0 && col % 2 == 1) || (row % 2 == 1 && col % 2 == 0)) std::cout << "  ";
+            else {
+                auto bit = row * 4 + (row % 2 == 0 ? col / 2 : (col-1) / 2);
                 char piece = getPieceAt(state, bit);
                 // Convert to display symbols
                 switch (piece) {
@@ -124,7 +127,7 @@ void displayState(const CheckersState& state) {
                 }
             }
         }
-        std::cout << "| " << (8 - row);
+        std::cout << "| " << row + 1;
     }
 
     std::cout << "\n  +-------------------+";
@@ -148,7 +151,7 @@ std::vector<int> parseMove(const std::string& moveStr) {
     for (char c : moveStr) {
         if (c == '-' || c == ':' || c == ' ') {
             if (!current.empty()) {
-                squares.push_back(algebraicToBit(current));
+                squares.push_back(algebraicToBit64(current));
                 current.clear();
             }
         } else {
@@ -157,7 +160,7 @@ std::vector<int> parseMove(const std::string& moveStr) {
     }
 
     if (!current.empty()) {
-        squares.push_back(algebraicToBit(current));
+        squares.push_back(algebraicToBit64(current));
     }
 
     return squares;
@@ -186,18 +189,7 @@ std::vector<int> getMoveInput() {
             continue;
         }
 
-        bool valid = true;
-        for (int sq : squares) {
-            if (sq < 0 || sq > 31) {
-                std::cout << "Invalid square in move.\n";
-                valid = false;
-                break;
-            }
-        }
-
-        if (valid) {
-            return squares;
-        }
+        return squares;
     }
 }
 
@@ -246,7 +238,7 @@ CheckersState convertTo32(const CheckersState64& state64) {
 
     // Convert 64-bit dark squares to 32-bit packed
     for (int square64 = 0; square64 < 64; square64++) {
-        if ((square64 / 8 + square64 % 8) % 2 == 1) {  // Dark square
+        if ((square64 / 8 + square64 % 8) % 2 == 0) {  // Dark square
             int bit = square64ToBit32(square64);
 
             if (state64.whitePawns & (1ULL << square64)) {
@@ -270,7 +262,7 @@ CheckersState convertTo32(const CheckersState64& state64) {
 // Convert between representations
 int bit32To64(int bit32) {
     // bit32: 0-31, bit64: 0-63 (only dark squares)
-    int row = 7 - (bit32 / 4);  // Row 0-7
+    int row = bit32 / 4;  // Row 0-7
     int colInRow = bit32 % 4;
 
     // Even rows: a,c,e,g (cols 0,2,4,6)
@@ -285,7 +277,7 @@ int square64ToBit32(int square64) {
     int col = square64 % 8;
 
     int colInRow = (row % 2 == 0) ? col / 2 : (col - 1) / 2;
-    int bit32 = (7 - row) * 4 + colInRow;
+    int bit32 = row * 4 + colInRow;
 
     return bit32;
 }
@@ -351,8 +343,8 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         throw std::invalid_argument("Invalid square");
     }
 
-    if (!isDarkSquare(from) || !isDarkSquare(to)) {
-        throw std::invalid_argument("Must play on dark squares");
+    if ((state32.metadata_ & 15) == 15) {
+        throw std::invalid_argument("Draw by queen moves");
     }
 
     // Get piece type
@@ -374,55 +366,6 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         throw std::invalid_argument("Destination occupied");
     }
 
-    // Validate move based on piece type
-    if (!isQueen) {
-        // Pawn moves
-        int rowDiff = (to / 8) - (from / 8);
-
-        if (isWhite && rowDiff >= 0) {
-            throw std::invalid_argument("White pawn must move up");
-        }
-        if (!isWhite && rowDiff <= 0) {
-            throw std::invalid_argument("Black pawn must move down");
-        }
-
-        if (abs(rowDiff) > 2) {
-            throw std::invalid_argument("Pawn can't move that far");
-        }
-
-        // Check diagonal
-        int colDiff = abs((to % 8) - (from % 8));
-        if (abs(rowDiff) != colDiff) {
-            throw std::invalid_argument("Must move diagonally");
-        }
-
-        if (abs(rowDiff) == 2) {
-            // Jump move
-            int middle = (from + to) / 2;
-            char middlePiece = getPieceAt64(state, middle);
-
-            bool validCapture = (isWhite && (middlePiece == 'b' || middlePiece == 'B')) ||
-                               (!isWhite && (middlePiece == 'w' || middlePiece == 'W'));
-
-            if (!validCapture) {
-                throw std::invalid_argument("No opponent to capture");
-            }
-        }
-    } else {
-        // Queen moves
-        int direction = getDirection(from, to);
-        if (direction == 0) {
-            throw std::invalid_argument("Not a diagonal move");
-        }
-
-        int steps = abs((to / 8) - (from / 8));
-
-        // Check path is clear
-        if (!isPathClear(state, from, to, direction)) {
-            throw std::invalid_argument("Path is not clear");
-        }
-    }
-
     // Apply move
     CheckersState64 newState = state;
 
@@ -442,6 +385,50 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         }
     }
 
+    // Handle captures for jumps
+    for (size_t i = 0; i < squares.size() - 1; i++) {
+        int stepFrom = squares[i];
+        int stepTo = squares[i + 1];
+
+        if (abs(abs(stepFrom - stepTo) - 8) <= 1) break;
+
+        auto increment = 0;
+        if (stepTo < stepFrom) {
+            if (stepTo < stepFrom - 16) increment = -9;
+            if (stepTo > stepFrom - 16) increment = -7;
+        }
+        else {
+            if (stepTo > stepFrom + 16) increment = 9;
+            if (stepTo < stepFrom + 16) increment = 7;
+        }
+        if (stepTo == stepFrom + increment) break;
+        auto takeCounter = 0;
+        for (auto j = stepFrom + increment; j < stepTo; j += increment) {
+            if ((j == stepFrom + increment || j == stepFrom + 2 * increment) && (j < 0 || j > 63)) throw;
+            auto mask = (1ULL << j);
+            if (isWhite) {
+                if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                    newState.blackPawns &= ~mask;
+                    newState.blackQueens &= ~mask;
+                    takeCounter++;
+                }
+                if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                    throw;
+                }
+            } else {
+                if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                    newState.whitePawns &= ~mask;
+                    newState.whiteQueens &= ~mask;
+                    takeCounter++;
+                }
+                if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                    throw;
+                }
+            }
+            if (takeCounter > 1) throw;
+        }
+    }
+
     // Place piece at destination
     Bitboard toMask = 1ULL << to;
     if (isWhite) {
@@ -458,28 +445,10 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         }
     }
 
-    // Handle captures for jumps
-    for (size_t i = 0; i < squares.size() - 1; i++) {
-        int stepFrom = squares[i];
-        int stepTo = squares[i + 1];
-
-        if (abs((stepTo / 8) - (stepFrom / 8)) == 2) {
-            // This is a jump
-            int middle = (stepFrom + stepTo) / 2;
-            Bitboard middleMask = 1ULL << middle;
-
-            // Remove captured piece
-            newState.whitePawns &= ~middleMask;
-            newState.whiteQueens &= ~middleMask;
-            newState.blackPawns &= ~middleMask;
-            newState.blackQueens &= ~middleMask;
-        }
-    }
-
     // Check promotion
     if (!isQueen) {
         int row = to / 8;
-        if ((isWhite && row == 0) || (!isWhite && row == 7)) {
+        if ((isWhite && row == 7) || (!isWhite && row == 0)) {
             // Promote to queen
             if (isWhite) {
                 newState.whitePawns &= ~toMask;
@@ -491,47 +460,10 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         }
     }
 
-    // Switch turn
-    newState.whiteTurn = !state.whiteTurn;
-
-    return newState;
-}
-
-// Display 64-bit board
-void displayState64(const CheckersState64& state) {
-    std::cout << "\n  +-----------------+\n";
-    std::cout << "  |   A B C D E F G H  |\n";
-    std::cout << "  +-------------------+";
-
-    for (int row = 0; row < 8; row++) {
-        std::cout << "\n" << (8 - row) << " | ";
-
-        for (int col = 0; col < 8; col++) {
-            int square = row * 8 + col;
-
-            if (!isDarkSquare(square)) {
-                std::cout << "  ";
-            } else {
-                char piece = getPieceAt64(state, square);
-                switch (piece) {
-                    case 'w': std::cout << "○ "; break;
-                    case 'W': std::cout << "◉ "; break;
-                    case 'b': std::cout << "● "; break;
-                    case 'B': std::cout << "◎ "; break;
-                    default: std::cout << "· "; break;
-                }
-            }
-        }
-        std::cout << "| " << (8 - row);
+    auto outputState = convertTo32(newState);
+    outputState.metadata_ ^= 128;
+    if (isQueen) {
+        outputState.metadata_++;
     }
-
-    std::cout << "\n  +-------------------+";
-    std::cout << "\n  |   A B C D E F G H  |\n";
-    std::cout << "  +-----------------+\n";
-
-    std::cout << "\nTurn: " << (state.whiteTurn ? "White ○" : "Black ●");
-
-    int whiteCount = __builtin_popcountll(state.whitePawns | state.whiteQueens);
-    int blackCount = __builtin_popcountll(state.blackPawns | state.blackQueens);
-    std::cout << "  Pieces: ○" << whiteCount << " vs ●" << blackCount << "\n";
+    return outputState;
 }

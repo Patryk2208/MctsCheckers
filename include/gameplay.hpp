@@ -35,6 +35,8 @@ int boardPosToBit(int row, int col);
 // Convert algebraic (e.g., "d2") to bit position
 int algebraicToBit(const std::string& alg);
 
+inline int algebraicToBit64(const std::string &alg);
+
 // Convert bit position to algebraic
 std::string bitToAlgebraic(int bit);
 

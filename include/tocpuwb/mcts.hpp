@@ -9,6 +9,8 @@
 #include "serialization.hpp"
 #include "tocpuwb/tree.hpp"
 
+#define PRECOMPUTED_ITERATIONS_PER_SECOND 500
+
 class MctsTocpuwb {
     MctsTocpuwbNode *root_;
     float c_;
@@ -19,7 +21,7 @@ public:
     ~MctsTocpuwb();
 
     bool Learn(MctsTocpuwbNode *node = nullptr);
-    bool FindBestMove(GameSequence* game);
+    bool FindBestMove(GameSequence* game, int timeLimitSeconds);
 private:
     MctsTocpuwbNode* Selection(MctsTocpuwbNode* node) const;
     bool ExpansionAndSimulation(MctsTocpuwbNode *node);

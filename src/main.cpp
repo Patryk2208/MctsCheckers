@@ -26,6 +26,7 @@ int main() {
             0,
             0
         });
+    auto timeLimitPerMove = 5;
 
     while (true) {
         // Clear screen (optional)
@@ -46,10 +47,12 @@ int main() {
             break;
         }
 
-        //todo
+        auto newState = applyMove(currentState, moveSquares);
+        game.history_.push_back(newState);
+        displayState(newState);
 
         try {
-            if (mcts.FindBestMove(&game)) {
+            if (mcts.FindBestMove(&game, timeLimitPerMove)) {
                 std::cout << "\nGAME END\n";
                 if (isWhiteTurn(currentState)) {
                     std::cout << "\nWhite Won (○)\n";

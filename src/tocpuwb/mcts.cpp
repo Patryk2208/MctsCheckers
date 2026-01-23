@@ -45,20 +45,28 @@ bool MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
     return false;
 }
 
-bool MctsTocpuwb::FindBestMove(GameSequence *game) {
+bool MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
     auto node = root_;
-    for (const auto state : game->history_) {
+
+    auto didLearn = false;
+
+    for (auto j = 0; j < game->history_.size() - 1; ++j) {
+        const auto state = game->history_[j];
+        const auto nextState = game->history_[j + 1];
         if (node == nullptr) throw;
         if (node->state_ != state) throw;
         if (node->childrenCount_ == 0) {
-            if (Learn(node)) {
-                return true;
+            for (auto iter = 0; iter < (timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND / 2); ++iter) {
+                if (Learn(node)) {
+                    return true;
+                }
             }
+            didLearn = true;
         }
         auto foundNextState = false;
         for (int i = 0; i < node->childrenCount_; i++) {
             const auto child = &node->children_[i];
-            if (child->state_ == state) {
+            if (child->state_ == nextState) {
                 node = child;
                 foundNextState = true;
                 break;
@@ -66,6 +74,14 @@ bool MctsTocpuwb::FindBestMove(GameSequence *game) {
         }
         if (!foundNextState) {
             throw;
+        }
+    }
+    if (node->childrenCount_ == 0) {
+        auto maxIterations = didLearn ? (timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND / 2) : timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND;
+        for (auto iter = 0; iter < maxIterations; ++iter) {
+            if (Learn(node)) {
+                return true;
+            }
         }
     }
     const MctsTocpuwbNode* childWithHighestUcb = nullptr;
