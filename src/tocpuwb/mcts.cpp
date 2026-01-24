@@ -8,6 +8,11 @@
 
 MctsTocpuwb::MctsTocpuwb(float c, int leafParallelizationFactor, MctsStorage *storage) : c_(c),
     batchExecutor_(leafParallelizationFactor), storage_(storage) {
+    if (leafParallelizationFactor == 32) {
+        precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_32;
+    } else {
+        precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_8;
+    }
     try {
         root_ = storage_->LoadTree();
     }
@@ -36,33 +41,40 @@ MctsTocpuwb::~MctsTocpuwb() {
     storage_->SaveTree(root_);
 }
 
-bool MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
+void MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
     if (root == nullptr)
         root = root_;
     const auto node = Selection(root);
-    if (!ExpansionAndSimulation(node)) return true;
+    if (node == nullptr) throw std::logic_error("Should always get to a leaf");
+    ExpansionAndSimulation(node);
     Backpropagation(node);
-    return false;
 }
 
-bool MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
+GameResult MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
     auto node = root_;
 
     auto didLearn = false;
 
     for (auto j = 0; j < game->history_.size() - 1; ++j) {
-        const auto state = game->history_[j];
-        const auto nextState = game->history_[j + 1];
-        if (node == nullptr) throw;
-        if (node->state_ != state) throw;
+
+        //todo always learning
         if (node->childrenCount_ == 0) {
-            for (auto iter = 0; iter < (timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND / 2); ++iter) {
-                if (Learn(node)) {
-                    return true;
-                }
+            for (auto iter = 0; iter < (timeLimitSeconds * precomputedIterations_ / 2); ++iter) {
+                Learn(node);
             }
             didLearn = true;
         }
+        if (node->childrenCount_ == 0) {
+            //children are not created only if they do not exist, only then does the game end
+            //although here it will not happen, but a precaution
+            int res;
+            if ((node->state_.metadata_ & 15) == 15) res = 0;
+            else if (node->state_.metadata_ & 128) res = -1;
+            else res = 1;
+            return GameResult{true, res};
+        }
+
+        const auto nextState = game->history_[j + 1];
         auto foundNextState = false;
         for (int i = 0; i < node->childrenCount_; i++) {
             const auto child = &node->children_[i];
@@ -73,17 +85,26 @@ bool MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
             }
         }
         if (!foundNextState) {
-            throw;
+            throw std::logic_error("Not a valid state");
+        }
+    }
+
+    //todo always learning
+    if (node->childrenCount_ == 0) {
+        auto maxIterations = didLearn ? (timeLimitSeconds * precomputedIterations_ / 2) : timeLimitSeconds * precomputedIterations_;
+        for (auto iter = 0; iter < maxIterations; ++iter) {
+            Learn(node);
         }
     }
     if (node->childrenCount_ == 0) {
-        auto maxIterations = didLearn ? (timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND / 2) : timeLimitSeconds * PRECOMPUTED_ITERATIONS_PER_SECOND;
-        for (auto iter = 0; iter < maxIterations; ++iter) {
-            if (Learn(node)) {
-                return true;
-            }
-        }
+        //children are not created only if they do not exist, only then does the game end
+        int res;
+        if ((node->state_.metadata_ & 15) == 15) res = 0;
+        else if (node->state_.metadata_ & 128) res = -1;
+        else res = 1;
+        return GameResult{true, res};
     }
+
     const MctsTocpuwbNode* childWithHighestUcb = nullptr;
     auto highestUcb = std::numeric_limits<float>::lowest();
     for (int i = 0; i < node->childrenCount_; i++) {
@@ -99,19 +120,18 @@ bool MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
         }
     }
     game->history_.push_back(childWithHighestUcb->state_);
-    return false;
+    return GameResult{false, 0};
 }
 
 MctsTocpuwbNode *MctsTocpuwb::Selection(MctsTocpuwbNode* node) const {
-    while (true) {
+    constexpr int hardMaxIter = 500; //should never stop anything, but prevents infinite loops
+    auto i = 0;
+    while (i++ < hardMaxIter) {
         if (node->childrenCount_ == 0) {
             return node;
         }
         MctsTocpuwbNode* childWithHighestUcb = nullptr;
         auto highestUcb = std::numeric_limits<float>::lowest();
-        //temp for testing
-        auto avgExploitation = 0.0f;
-        auto avgExploration = 0.0f;
         for (int i = 0; i < node->childrenCount_; i++) {
             const auto child = &node->children_[i];
 
@@ -119,19 +139,11 @@ MctsTocpuwbNode *MctsTocpuwb::Selection(MctsTocpuwbNode* node) const {
             ucbExploitation = (ucbExploitation + 1.0f) / 2.0f; //normalizing because we operate on [-1, 1] rewards
             const auto ucbExploration = c_ * sqrtf(logf(node->visitCount_) / child->visitCount_);
 
-            //testing
-            avgExploration += ucbExploration;
-            avgExploitation += ucbExploitation;
-
             if (const auto ucbScore = ucbExploration + ucbExploitation; ucbScore > highestUcb) {
                 highestUcb = ucbScore;
                 childWithHighestUcb = child;
             }
         }
-        //testing
-        avgExploitation /= node->childrenCount_;
-        avgExploration /= node->childrenCount_;
-
         node = childWithHighestUcb;
 
         //testing
@@ -146,11 +158,12 @@ MctsTocpuwbNode *MctsTocpuwb::Selection(MctsTocpuwbNode* node) const {
             node->state_.blackQueens_,
             node->state_.metadata_);*/
     }
+    return nullptr;
 }
 
-bool MctsTocpuwb::ExpansionAndSimulation(MctsTocpuwbNode *node) {
+void MctsTocpuwb::ExpansionAndSimulation(MctsTocpuwbNode *node) {
     const auto seed = time(nullptr);
-    return batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
+    batchExecutor_.ParallelFindChildrenAndSimulate(node, seed);
 }
 
 void MctsTocpuwb::Backpropagation(MctsTocpuwbNode* node) {

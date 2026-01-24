@@ -49,11 +49,12 @@ void BatchExecutor::Test(const size_t size, const BatchSoACheckersStateHost& bat
  * parallel different simulations for the same state and also the crucial GetLegalActions function is also
  * parallelized, then when the results come, we assign reward_ to each child and finish
  */
-bool BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const unsigned long long seed) {
+void BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const unsigned long long seed) {
     const auto h_nodeSingleBatch = BatchSoACheckersStateHost({node->state_});
     auto h_actions = BatchLegalActionsHost(1);
     FindChildren(h_nodeSingleBatch, h_actions);
-    if (h_actions.actions_->size_ == 0) return false;
+    if (h_actions.actions_->size_ == 0)
+        return;
 
     Expand(node, h_actions);
 
@@ -76,7 +77,6 @@ bool BatchExecutor::ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, const
     printf("\n");*/
 
     AssignRewards(node, h_results);
-    return true;
 }
 
 void BatchExecutor::InitializeRandomness(const size_t batchSize, curandState* randomStates, const unsigned long long seed) {
@@ -155,7 +155,9 @@ GLOBAL void SimulateKernel(const size_t batchSize, curandState* randomStates, co
     if (boardId >= batchSize) return;
     auto gameEnd = false;
     auto randomState = &randomStates[boardId];
-    while (true) {
+    constexpr int hardMaxIter = 500; //should never stop anything, but prevents infinite loops
+    auto i = 0;
+    while (i++ < hardMaxIter) {
         CheckTerminal(batchSize, states, results, &gameEnd);
         if (gameEnd) {
             return; //either entire warp exits, or no thread exit
@@ -214,7 +216,7 @@ void BatchExecutor::AssignRewards(const MctsTocpuwbNode *node, const BatchSimula
         for (auto j = 0; j < leafParallelismFactor_; j++) {
             sum += h_results.results_[i * leafParallelismFactor_ + j];
         }
-        child->reward_ = sum / leafParallelismFactor_;
+        child->reward_ = sum; //crucial fix, correct scale for ucb, cannot divide here by lpf
         child->visitCount_ = leafParallelismFactor_;
     }
 }

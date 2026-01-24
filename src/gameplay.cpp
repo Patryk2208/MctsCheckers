@@ -396,36 +396,62 @@ CheckersState applyMove(const CheckersState& state32, const std::vector<int>& sq
         if (stepTo < stepFrom) {
             if (stepTo < stepFrom - 16) increment = -9;
             if (stepTo > stepFrom - 16) increment = -7;
+            if (stepTo == stepFrom + increment) break;
+            auto takeCounter = 0;
+            for (auto j = stepFrom + increment; j > stepTo; j += increment) {
+                if ((j == stepFrom + increment || j == stepFrom + 2 * increment) && (j < 0 || j > 63)) throw;
+                auto mask = (1ULL << j);
+                if (isWhite) {
+                    if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                        newState.blackPawns &= ~mask;
+                        newState.blackQueens &= ~mask;
+                        takeCounter++;
+                    }
+                    if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                        throw;
+                    }
+                } else {
+                    if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                        newState.whitePawns &= ~mask;
+                        newState.whiteQueens &= ~mask;
+                        takeCounter++;
+                    }
+                    if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                        throw;
+                    }
+                }
+                if (takeCounter > 1) throw;
+            }
         }
         else {
             if (stepTo > stepFrom + 16) increment = 9;
             if (stepTo < stepFrom + 16) increment = 7;
-        }
-        if (stepTo == stepFrom + increment) break;
-        auto takeCounter = 0;
-        for (auto j = stepFrom + increment; j < stepTo; j += increment) {
-            if ((j == stepFrom + increment || j == stepFrom + 2 * increment) && (j < 0 || j > 63)) throw;
-            auto mask = (1ULL << j);
-            if (isWhite) {
-                if (newState.blackPawns & mask || newState.blackQueens & mask) {
-                    newState.blackPawns &= ~mask;
-                    newState.blackQueens &= ~mask;
-                    takeCounter++;
+            if (stepTo == stepFrom + increment) break;
+            auto takeCounter = 0;
+            for (auto j = stepFrom + increment; j < stepTo; j += increment) {
+                if ((j == stepFrom + increment || j == stepFrom + 2 * increment) && (j < 0 || j > 63)) throw;
+                auto mask = (1ULL << j);
+                if (isWhite) {
+                    if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                        newState.blackPawns &= ~mask;
+                        newState.blackQueens &= ~mask;
+                        takeCounter++;
+                    }
+                    if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                        throw;
+                    }
+                } else {
+                    if (newState.whitePawns & mask || newState.whiteQueens & mask) {
+                        newState.whitePawns &= ~mask;
+                        newState.whiteQueens &= ~mask;
+                        takeCounter++;
+                    }
+                    if (newState.blackPawns & mask || newState.blackQueens & mask) {
+                        throw;
+                    }
                 }
-                if (newState.whitePawns & mask || newState.whiteQueens & mask) {
-                    throw;
-                }
-            } else {
-                if (newState.whitePawns & mask || newState.whiteQueens & mask) {
-                    newState.whitePawns &= ~mask;
-                    newState.whiteQueens &= ~mask;
-                    takeCounter++;
-                }
-                if (newState.blackPawns & mask || newState.blackQueens & mask) {
-                    throw;
-                }
+                if (takeCounter > 1) throw;
             }
-            if (takeCounter > 1) throw;
         }
     }
 

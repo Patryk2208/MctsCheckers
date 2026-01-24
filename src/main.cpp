@@ -13,9 +13,10 @@
 
 int main() {
     //FIXED bug1: 0x200C3 || 0x40000000 || 0x10480000 || 0x0 || 0x0, queen jumps over its pawn
+    //bug2: differentiate between final position in selection and won position
 
-    auto storage = MctsStorage(std::string(PROJECT_ROOT) + "/db/test_tree.db");
-    auto mcts = MctsTocpuwb(sqrtf(2), 8, &storage);
+    auto storage = MctsStorage(std::string(PROJECT_ROOT) + "/db/correct_leaf_32.db");
+    auto mcts = MctsTocpuwb(sqrtf(2), 32, &storage);
 
     auto game = GameSequence();
     game.history_.push_back(CheckersState
@@ -26,7 +27,7 @@ int main() {
             0,
             0
         });
-    auto timeLimitPerMove = 5;
+    constexpr auto timeLimitPerMove = 5;
 
     while (true) {
         // Clear screen (optional)
@@ -41,35 +42,46 @@ int main() {
             std::cout << "\nBlack's turn (○)\n";
         }
 
-        auto moveSquares = getMoveInput();
-        if (moveSquares.empty()) {
-            std::cout << "Exiting...\n";
-            break;
-        }
+        auto end = false;
+        while (true) {
+            try {
+                auto moveSquares = getMoveInput();
+                if (moveSquares.empty()) {
+                    std::cout << "Exiting...\n";
+                    break;
+                }
 
-        auto newState = applyMove(currentState, moveSquares);
-        game.history_.push_back(newState);
-        displayState(newState);
+                auto newState = applyMove(currentState, moveSquares);
+                game.history_.push_back(newState);
+                displayState(newState);
 
-        try {
-            if (mcts.FindBestMove(&game, timeLimitPerMove)) {
-                std::cout << "\nGAME END\n";
-                if (isWhiteTurn(currentState)) {
-                    std::cout << "\nWhite Won (○)\n";
-                } else {
-                    std::cout << "\nBlack Won (●)\n";
+                const auto res = mcts.FindBestMove(&game, timeLimitPerMove);
+                if (res.gameOver_) {
+                    std::cout << "\nGAME END\n";
+                    if (res.result_ == 1) {
+                        std::cout << "\nWhite Won (●)\n";
+                    } else if (res.result_ == -1) {
+                        std::cout << "\nBlack Won (○)\n";
+                    }
+                    else {
+                        std::cout << "\nDraw\n";
+                    }
+                    end = true;
                 }
                 break;
             }
+            catch (...) {
+                game.history_.pop_back();
+                displayState(game.history_.back());
+                std::cout << "\n************\n" << "BAD MOVE" << std::endl;
+            }
         }
-        catch(...) {
-            std::cout << "\n************\n" << "BAD MOVE" << std::endl;
-        }
+        if (end) break;
     }
 
 
     /*auto start = std::chrono::high_resolution_clock::now();
-    auto mctsIterations = 1300;
+    auto mctsIterations = 10000;
     for (auto i = 0; i < mctsIterations; i++) {
         mcts.Learn();
         if (i % 10000 == 0 && i > 0)

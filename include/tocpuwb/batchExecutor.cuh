@@ -26,7 +26,7 @@ public:
      * (only those can exist or with all children) finds ALL its children and performs simulation phase for
      * all of them in parallel, ALLOCATES children with simulated values and modifies the node to point at them
      */
-    H bool ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, unsigned long long seed);
+    H void ParallelFindChildrenAndSimulate(MctsTocpuwbNode *node, unsigned long long seed);
 private:
     H void InitializeRandomness(size_t batchSize, curandState* randomStates, unsigned long long seed);
     H void FindChildren(const BatchSoACheckersStateHost& h_batch, const BatchLegalActionsHost& h_actions);
