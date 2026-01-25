@@ -4,93 +4,225 @@
 
 #include <chrono>
 
-#include "tocpuwb/batchExecutor.cuh"
 #include "tocpuwb/mcts.hpp"
 #include <cmath>
+#include <CLI/CLI.hpp>
 
-#include "gameplay.hpp"
+#include "../include/gameplay.hpp"
 #include "tocpuwb/serialization.hpp"
 
-int main() {
+int main(int argc, char** argv) {
     //FIXED bug1: 0x200C3 || 0x40000000 || 0x10480000 || 0x0 || 0x0, queen jumps over its pawn
     //bug2: differentiate between final position in selection and won position
 
-    auto storage = MctsStorage(std::string(PROJECT_ROOT) + "/db/correct_leaf_32.db");
-    auto mcts = MctsTocpuwb(sqrtf(2), 32, &storage);
+    CLI::App app{"Mcts for Checkers"};
 
-    auto game = GameSequence();
-    game.history_.push_back(CheckersState
-        {
-            0b00000000000000000000111111111111,
-            0b11111111111100000000000000000000,
-            0,
-            0,
-            0
-        });
-    constexpr auto timeLimitPerMove = 5;
+    auto human_cmd = app.add_subcommand("human", "Human vs Algorithm mode");
+    auto alg_cmd = app.add_subcommand("mcts", "Algorithm vs Algorithm mode");
+    auto learn_cmd = app.add_subcommand("learn", "Learn");
 
-    while (true) {
-        // Clear screen (optional)
-        // std::cout << "\033[2J\033[H";
+    //common variables
+    float c = sqrtf(2);
+    int leafParallelizationFactor = 32;
 
-        const auto currentState = game.history_.back();
-        displayState(currentState);
+    // Variables for human mode
+    std::string human_db_path;
+    int human_alg_time = 5;
 
-        if (isWhiteTurn(currentState)) {
-            std::cout << "\nWhite's turn (●)\n";
-        } else {
-            std::cout << "\nBlack's turn (○)\n";
+    // Variables for alg mode
+    std::string alg1_db, alg2_db;
+    int alg1_time = 5, alg2_time = 5;
+    bool noDisplay = false;
+
+    //Variables for learn mode
+    std::string learn_alg_db;
+    int iterations;
+
+    app.add_option("-c", c, "c param for mcts");
+    app.add_option("-lpf", leafParallelizationFactor, "Leaf parallelization factor for mcts");
+
+    // Configure human subcommand
+    human_cmd->add_option("-d,--database", human_db_path, "Path to algorithm database, RELATIVE to project root")
+        ->check(CLI::ExistingFile);
+
+    human_cmd->add_option("-t,--time", human_alg_time,
+                         "Algorithm response time in seconds (default: 5.0)")
+        ->capture_default_str()
+        ->check(CLI::Range(1, 5));
+
+    // Configure alg subcommand
+    alg_cmd->add_option("-d1,--database1", alg1_db, "Path to first algorithm database, RELATIVE to project root")
+        ->check(CLI::ExistingFile);
+
+    alg_cmd->add_option("-d2,--database2", alg2_db, "Path to second algorithm database, RELATIVE to project root")
+        ->check(CLI::ExistingFile);
+
+    alg_cmd->add_flag("-nd,--no-display", noDisplay, "if set, the game will not be displayed, just the results");
+
+    alg_cmd->add_option("-t1,--time1", alg1_time,
+                       "First algorithm response time in seconds (default: 5.0)")
+        ->capture_default_str()
+        ->check(CLI::Range(0, 10));
+
+    alg_cmd->add_option("-t2,--time2", alg2_time,
+                       "Second algorithm response time in seconds (default: 5.0)")
+        ->capture_default_str()
+        ->check(CLI::Range(0, 10));
+
+    // Configure human subcommand
+    human_cmd->add_option("-d,--database", learn_alg_db, "Path to algorithm database, RELATIVE to project root")
+        ->check(CLI::ExistingFile);
+
+    human_cmd->add_option("--iterations", iterations,
+                         "Algorithm response time in seconds (default: 5.0)")
+        ->capture_default_str()
+        ->check(CLI::Range(1, 1000000000));
+
+    try {
+        app.parse(argc, argv);
+    } catch (const CLI::ParseError &e) {
+        return app.exit(e);
+    }
+
+    if (*human_cmd) {
+        MctsStorage* storage;
+        try {
+            storage = new MctsStorage(std::string(PROJECT_ROOT) + human_db_path);
+        } catch (...) {
+            storage = nullptr;
         }
+        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, human_alg_time, storage);
 
-        auto end = false;
+        auto game = GameSequence();
+        constexpr auto start = StartState;
+        game.history_.push_back(start);
+
         while (true) {
-            try {
-                auto moveSquares = getMoveInput();
-                if (moveSquares.empty()) {
-                    std::cout << "Exiting...\n";
+            const auto currentState = game.history_.back();
+            displayState(currentState);
+
+            if (isWhiteTurn(currentState)) {
+                std::cout << "\nWhite's turn (●)\n";
+            } else {
+                std::cout << "\nBlack's turn (○)\n";
+            }
+
+            auto end = false;
+            while (true) {
+                try {
+                    auto moveSquares = getMoveInput();
+                    if (moveSquares.empty()) {
+                        std::cout << "Exiting...\n";
+                        break;
+                    }
+
+                    auto newState = applyMove(currentState, moveSquares);
+                    game.history_.push_back(newState);
+                    displayState(newState);
+
+                    const auto res = mcts.FindBestMove(&game);
+                    if (res.gameOver_) {
+                        std::cout << "\nGAME END\n";
+                        if (res.result_ == 1) {
+                            std::cout << "\nWhite Won (●)\n";
+                        } else if (res.result_ == -1) {
+                            std::cout << "\nBlack Won (○)\n";
+                        }
+                        else {
+                            std::cout << "\nDraw\n";
+                        }
+                        end = true;
+                    }
                     break;
                 }
+                catch (...) {
+                    game.history_.pop_back();
+                    displayState(game.history_.back());
+                    std::cout << "\n************\n" << "BAD MOVE" << std::endl;
+                }
+            }
+            if (end) break;
+        }
 
-                auto newState = applyMove(currentState, moveSquares);
-                game.history_.push_back(newState);
-                displayState(newState);
+        delete mcts;
+        delete storage;
+    }
+    else if (*alg_cmd) {
+        MctsStorage* storage1;
+        MctsStorage* storage2;
+        try {
+            storage1 = new MctsStorage(std::string(PROJECT_ROOT) + alg1_db);
+        } catch (...) {
+            storage1 = nullptr;
+        }
+        try {
+            storage2 = new MctsStorage(std::string(PROJECT_ROOT) + alg2_db);
+        } catch (...) {
+            storage2 = nullptr;
+        }
+        auto mcts1 = new MctsTocpuwb(c, leafParallelizationFactor, alg1_time, storage1);
+        auto mcts2 = new MctsTocpuwb(c, leafParallelizationFactor, alg2_time, storage2);
 
-                const auto res = mcts.FindBestMove(&game, timeLimitPerMove);
-                if (res.gameOver_) {
-                    std::cout << "\nGAME END\n";
-                    if (res.result_ == 1) {
-                        std::cout << "\nWhite Won (●)\n";
-                    } else if (res.result_ == -1) {
-                        std::cout << "\nBlack Won (○)\n";
-                    }
-                    else {
-                        std::cout << "\nDraw\n";
-                    }
-                    end = true;
+        auto currentlyMoving = mcts1;
+        auto currentlyWaiting = mcts2;
+
+        auto game = GameSequence();
+        constexpr auto start = StartState;
+        game.history_.push_back(start);
+
+        while (true) {
+            const auto currentState = game.history_.back();
+            if (!noDisplay) {
+                displayState(currentState);
+
+                if (isWhiteTurn(currentState)) {
+                    std::cout << "\nWhite's turn (●)\n";
+                } else {
+                    std::cout << "\nBlack's turn (○)\n";
+                }
+            }
+
+            const auto res = currentlyMoving->FindBestMove(&game);
+            if (res.gameOver_) {
+                std::cout << "\nGAME END\n";
+                if (res.result_ == 1) {
+                    std::cout << "\nWhite Won (●)\n";
+                } else if (res.result_ == -1) {
+                    std::cout << "\nBlack Won (○)\n";
+                }
+                else {
+                    std::cout << "\nDraw\n";
                 }
                 break;
             }
-            catch (...) {
-                game.history_.pop_back();
-                displayState(game.history_.back());
-                std::cout << "\n************\n" << "BAD MOVE" << std::endl;
-            }
+            std::swap(currentlyWaiting, currentlyMoving);
         }
-        if (end) break;
-    }
 
-
-    /*auto start = std::chrono::high_resolution_clock::now();
-    auto mctsIterations = 10000;
-    for (auto i = 0; i < mctsIterations; i++) {
-        mcts.Learn();
-        if (i % 10000 == 0 && i > 0)
-            fprintf(stderr, "\n");
-        if (i % 100 == 0)
-            fprintf(stderr, ".");
+        delete mcts1; delete mcts2;
+        delete storage1; delete storage2;
     }
-    printf("\n");
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    printf("Elapsed time: %ld", elapsed.count());*/
+    else if (*learn_cmd) {
+        MctsStorage* storage;
+        try {
+            storage = new MctsStorage(std::string(PROJECT_ROOT) + learn_alg_db);
+        } catch (...) {
+            storage = nullptr;
+        }
+        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, 0, storage);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (auto i = 0; i < iterations; i++) {
+            mcts->Learn();
+            if (i % 10000 == 0 && i > 0)
+                fprintf(stderr, "\n");
+            if (i % 100 == 0)
+                fprintf(stderr, ".");
+        }
+        printf("\n");
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+        printf("Elapsed time: %ld", elapsed.count());
+
+        delete mcts;
+        delete storage;
+    }
 }

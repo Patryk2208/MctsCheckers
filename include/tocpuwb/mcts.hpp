@@ -23,13 +23,14 @@ class MctsTocpuwb {
     BatchExecutor batchExecutor_;
     MctsStorage* storage_;
     int precomputedIterations_;
+    int timeLimitSeconds_;
 public:
-    MctsTocpuwb(float c, int leafParallelizationFactor, MctsStorage *storage = nullptr);
+    MctsTocpuwb(float c, int leafParallelizationFactor, int timePerMove, MctsStorage *storage = nullptr);
     ~MctsTocpuwb();
 
     void Learn(MctsTocpuwbNode *node = nullptr);
 
-    GameResult FindBestMove(GameSequence *game, int timeLimitSeconds);
+    GameResult FindBestMove(GameSequence *game);
 private:
     MctsTocpuwbNode* Selection(MctsTocpuwbNode* node) const;
 

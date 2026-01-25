@@ -2,7 +2,7 @@
 // Created by patryk on 1/23/26.
 //
 #include <cstdint>
-#include <gameplay.hpp>
+#include <../include/gameplay.hpp>
 
 
 // Helper functions based on your specifications

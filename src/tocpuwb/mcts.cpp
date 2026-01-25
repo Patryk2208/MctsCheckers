@@ -6,18 +6,19 @@
 #include <limits>
 #include <cmath>
 
-MctsTocpuwb::MctsTocpuwb(float c, int leafParallelizationFactor, MctsStorage *storage) : c_(c),
-    batchExecutor_(leafParallelizationFactor), storage_(storage) {
+MctsTocpuwb::MctsTocpuwb(const float c, const int leafParallelizationFactor, const int timePerMove, MctsStorage *storage)
+    : c_(c), batchExecutor_(leafParallelizationFactor), storage_(storage), timeLimitSeconds_(timePerMove) {
     if (leafParallelizationFactor == 32) {
         precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_32;
     } else {
         precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_8;
     }
-    try {
-        root_ = storage_->LoadTree();
-    }
-    catch (...) {
-        root_ = nullptr;
+    root_ = nullptr;
+    if (storage != nullptr) {
+        try {
+            root_ = storage_->LoadTree();
+        }
+        catch (...) {}
     }
     if (!root_) {
         root_ = new MctsTocpuwbNode();
@@ -38,7 +39,8 @@ MctsTocpuwb::MctsTocpuwb(float c, int leafParallelizationFactor, MctsStorage *st
 }
 
 MctsTocpuwb::~MctsTocpuwb() {
-    storage_->SaveTree(root_);
+    if (storage_ != nullptr)
+        storage_->SaveTree(root_);
 }
 
 void MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
@@ -50,20 +52,21 @@ void MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
     Backpropagation(node);
 }
 
-GameResult MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
+GameResult MctsTocpuwb::FindBestMove(GameSequence *game) {
     auto node = root_;
 
     auto didLearn = false;
 
     for (auto j = 0; j < game->history_.size() - 1; ++j) {
 
-        //todo always learning
-        if (node->childrenCount_ == 0) {
-            for (auto iter = 0; iter < (timeLimitSeconds * precomputedIterations_ / 2); ++iter) {
+        if (node->childrenCount_ == 0 || timeLimitSeconds_ > 0) {
+            const auto tl = timeLimitSeconds_ == 0 ? 4 : timeLimitSeconds_;
+            for (auto iter = 0; iter < (tl * precomputedIterations_ / 2); ++iter) {
                 Learn(node);
             }
             didLearn = true;
         }
+
         if (node->childrenCount_ == 0) {
             //children are not created only if they do not exist, only then does the game end
             //although here it will not happen, but a precaution
@@ -89,9 +92,9 @@ GameResult MctsTocpuwb::FindBestMove(GameSequence *game, int timeLimitSeconds) {
         }
     }
 
-    //todo always learning
-    if (node->childrenCount_ == 0) {
-        auto maxIterations = didLearn ? (timeLimitSeconds * precomputedIterations_ / 2) : timeLimitSeconds * precomputedIterations_;
+    if (node->childrenCount_ == 0 || timeLimitSeconds_ > 0) {
+        const auto tl = timeLimitSeconds_ == 0 ? 4 : timeLimitSeconds_;
+        auto maxIterations = didLearn ? (tl * precomputedIterations_ / 2) : tl * precomputedIterations_;
         for (auto iter = 0; iter < maxIterations; ++iter) {
             Learn(node);
         }

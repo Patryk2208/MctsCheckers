@@ -41,4 +41,12 @@ struct GameSequence {
     std::vector<CheckersState> history_;
 };
 
+constexpr auto StartState = CheckersState{
+    0b00000000000000000000111111111111,
+    0b11111111111100000000000000000000,
+    0,
+    0,
+    0
+};
+
 #endif //MCTS_CHECKERS_STATE_HPP

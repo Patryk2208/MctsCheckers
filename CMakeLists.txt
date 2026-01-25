@@ -36,6 +36,15 @@ message(STATUS "CUDAToolkit_LIBRARY_DIR: ${CUDAToolkit_LIBRARY_DIR}")
 ####set(CUDA_cuda_driver_LIBRARY "/usr/lib64/libcuda.so" CACHE FILEPATH "Override stub library" FORCE)
 
 include(FetchContent)
+
+FetchContent_Declare(
+        cli11
+        GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+        GIT_TAG        v2.6.1
+        GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(cli11)
+
 FetchContent_Declare(
         sqlite3
         URL https://sqlite.org/2026/sqlite-amalgamation-3510200.zip
@@ -75,6 +84,7 @@ target_link_libraries(MCTS PRIVATE
         CUDA::cudart
         CUDA::curand
         sqlite3
+        CLI11::CLI11
 )
 
 target_compile_definitions(MCTS
