@@ -38,3 +38,13 @@ Z uwagi na istote algorytmu MCTS nie jestem pewien czy da sie temu w ogole zapob
 7. Sytuacja, w ktorej w trakcie gry trafiamy na niezbadane nody, powinnismy je chyba "dosymulowac"?
 
 8. Sytuacja, w ktorej trafiamy na juz istniejacy stan tylko inna sciezka, powinna byc jakos madrze obsluzona, ale wtedy jest problem z faza 4, bo bysmy musieli symulowac wielu rodzicow
+
+
+#######
+
+Dodalem mozliwosc zapisu do bazy danych drzewa, przez co jest ono coraz madrzejsze i nie zawsze liczy od zera 
+
+Dokumentacja programu mamy 3 opcje wywolania zawsze mozemy podac c i leaf parallelization factor czyli parametry do mcts'a:
+1. human - gramy z botem, mozemy podac ile czasu ma bot t i z jakies bazy danych d korzystac
+2. mcts - bot gra z botem, t1 i d1 to parametry dla bialego a t2 i d2 dla czarnego
+3. learn - podajemy d i iterations i wtedy mcts wykona sie iterations razy i zapisze to co przeanalizowal zgodnie z ucb do db

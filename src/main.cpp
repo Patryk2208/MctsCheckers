@@ -39,41 +39,37 @@ int main(int argc, char** argv) {
     int iterations;
 
     app.add_option("-c", c, "c param for mcts");
-    app.add_option("-lpf", leafParallelizationFactor, "Leaf parallelization factor for mcts");
+    app.add_option("--lpf", leafParallelizationFactor, "Leaf parallelization factor for mcts");
 
     // Configure human subcommand
-    human_cmd->add_option("-d,--database", human_db_path, "Path to algorithm database, RELATIVE to project root")
-        ->check(CLI::ExistingFile);
+    human_cmd->add_option("-d", human_db_path, "Path to algorithm database, RELATIVE to project root");
 
-    human_cmd->add_option("-t,--time", human_alg_time,
+    human_cmd->add_option("-t", human_alg_time,
                          "Algorithm response time in seconds (default: 5.0)")
         ->capture_default_str()
         ->check(CLI::Range(1, 5));
 
     // Configure alg subcommand
-    alg_cmd->add_option("-d1,--database1", alg1_db, "Path to first algorithm database, RELATIVE to project root")
-        ->check(CLI::ExistingFile);
+    alg_cmd->add_option("--d1", alg1_db, "Path to first algorithm database, RELATIVE to project root");
 
-    alg_cmd->add_option("-d2,--database2", alg2_db, "Path to second algorithm database, RELATIVE to project root")
-        ->check(CLI::ExistingFile);
+    alg_cmd->add_option("--d2", alg2_db, "Path to second algorithm database, RELATIVE to project root");
 
-    alg_cmd->add_flag("-nd,--no-display", noDisplay, "if set, the game will not be displayed, just the results");
+    alg_cmd->add_flag("--nd", noDisplay, "if set, the game will not be displayed, just the results");
 
-    alg_cmd->add_option("-t1,--time1", alg1_time,
+    alg_cmd->add_option("--t1", alg1_time,
                        "First algorithm response time in seconds (default: 5.0)")
         ->capture_default_str()
         ->check(CLI::Range(0, 10));
 
-    alg_cmd->add_option("-t2,--time2", alg2_time,
+    alg_cmd->add_option("--t2", alg2_time,
                        "Second algorithm response time in seconds (default: 5.0)")
         ->capture_default_str()
         ->check(CLI::Range(0, 10));
 
-    // Configure human subcommand
-    human_cmd->add_option("-d,--database", learn_alg_db, "Path to algorithm database, RELATIVE to project root")
-        ->check(CLI::ExistingFile);
+    // Configure learn subcommand
+    learn_cmd->add_option("-d", learn_alg_db, "Path to algorithm database, RELATIVE to project root");
 
-    human_cmd->add_option("--iterations", iterations,
+    learn_cmd->add_option("--iterations", iterations,
                          "Algorithm response time in seconds (default: 5.0)")
         ->capture_default_str()
         ->check(CLI::Range(1, 1000000000));
@@ -119,8 +115,13 @@ int main(int argc, char** argv) {
                     auto newState = applyMove(currentState, moveSquares);
                     game.history_.push_back(newState);
                     displayState(newState);
-
-                    const auto res = mcts.FindBestMove(&game);
+                } catch (...) {
+                    displayState(game.history_.back());
+                    std::cout << "\n************\n" << "BAD MOVE" << std::endl;
+                    continue;
+                }
+                try {
+                    const auto res = mcts->FindBestMove(&game);
                     if (res.gameOver_) {
                         std::cout << "\nGAME END\n";
                         if (res.result_ == 1) {
