@@ -18,8 +18,9 @@ struct MctsTocpuwbNode;
 
 class BatchExecutor {
     int leafParallelismFactor_;
+    int statesPerBlock_;
 public:
-    BatchExecutor(int leafParallelismFactor) : leafParallelismFactor_(leafParallelismFactor) {}
+    BatchExecutor(int leafParallelismFactor, int spb) : leafParallelismFactor_(leafParallelismFactor), statesPerBlock_(spb) {}
     H void Test(size_t size, const BatchSoACheckersStateHost& batch, BatchLegalActionsHost& actions);
     /**
      * Main function used in the mcts process, takes the one node which does not have any children yet

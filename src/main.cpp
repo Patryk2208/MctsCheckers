@@ -18,12 +18,14 @@ int main(int argc, char** argv) {
     CLI::App app{"Mcts for Checkers"};
 
     auto human_cmd = app.add_subcommand("human", "Human vs Algorithm mode");
-    auto alg_cmd = app.add_subcommand("mcts", "Algorithm vs Algorithm mode");
+    auto alg_cmd = app.add_subcommand("bot", "Algorithm vs Algorithm mode");
     auto learn_cmd = app.add_subcommand("learn", "Learn");
 
     //common variables
     float c = sqrtf(2);
     int leafParallelizationFactor = 32;
+    int statesPerBlock = 6;
+    int iterationsPerMove = 0;
 
     // Variables for human mode
     std::string human_db_path;
@@ -40,6 +42,9 @@ int main(int argc, char** argv) {
 
     app.add_option("-c", c, "c param for mcts");
     app.add_option("--lpf", leafParallelizationFactor, "Leaf parallelization factor for mcts");
+    app.add_option("--spb", statesPerBlock, "number of parallel states in a block");
+    app.add_option("--ib", iterationsPerMove,
+        "fixed number of iterations instead of fixed amount of time for a move, i think it's much more stable this way");
 
     // Configure human subcommand
     human_cmd->add_option("-d", human_db_path, "Path to algorithm database, RELATIVE to project root");
@@ -87,7 +92,7 @@ int main(int argc, char** argv) {
         } catch (...) {
             storage = nullptr;
         }
-        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, human_alg_time, storage);
+        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, statesPerBlock, iterationsPerMove, human_alg_time, storage);
 
         auto game = GameSequence();
         constexpr auto start = StartState;
@@ -117,7 +122,7 @@ int main(int argc, char** argv) {
                     displayState(newState);
                 } catch (...) {
                     displayState(game.history_.back());
-                    std::cout << "\n************\n" << "BAD MOVE" << std::endl;
+                    std::cout << "\n************\n" << "BAD INPUT" << std::endl;
                     continue;
                 }
                 try {
@@ -161,8 +166,8 @@ int main(int argc, char** argv) {
         } catch (...) {
             storage2 = nullptr;
         }
-        auto mcts1 = new MctsTocpuwb(c, leafParallelizationFactor, alg1_time, storage1);
-        auto mcts2 = new MctsTocpuwb(c, leafParallelizationFactor, alg2_time, storage2);
+        auto mcts1 = new MctsTocpuwb(c, leafParallelizationFactor, statesPerBlock, iterationsPerMove, alg1_time, storage1);
+        auto mcts2 = new MctsTocpuwb(c, leafParallelizationFactor, statesPerBlock, iterationsPerMove, alg2_time, storage2);
 
         auto currentlyMoving = mcts1;
         auto currentlyWaiting = mcts2;
@@ -209,7 +214,7 @@ int main(int argc, char** argv) {
         } catch (...) {
             storage = nullptr;
         }
-        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, 0, storage);
+        auto mcts = new MctsTocpuwb(c, leafParallelizationFactor, statesPerBlock, iterationsPerMove, 0, storage);
         auto start = std::chrono::high_resolution_clock::now();
         for (auto i = 0; i < iterations; i++) {
             mcts->Learn();

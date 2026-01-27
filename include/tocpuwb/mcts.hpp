@@ -9,9 +9,6 @@
 #include "serialization.hpp"
 #include "tocpuwb/tree.hpp"
 
-#define PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_8 500
-#define PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_32 400
-
 struct GameResult {
     bool gameOver_;
     int result_;
@@ -22,10 +19,12 @@ class MctsTocpuwb {
     float c_;
     BatchExecutor batchExecutor_;
     MctsStorage* storage_;
-    int precomputedIterations_;
     int timeLimitSeconds_;
+    int iterationsPerMove_;
+
+    std::unordered_map<GameSequence*, MctsTocpuwbNode*> lastGameAccessCache_;
 public:
-    MctsTocpuwb(float c, int leafParallelizationFactor, int timePerMove, MctsStorage *storage = nullptr);
+    MctsTocpuwb(float c, int lpf, int spb, int ipm, int tpm, MctsStorage *storage = nullptr);
     ~MctsTocpuwb();
 
     void Learn(MctsTocpuwbNode *node = nullptr);

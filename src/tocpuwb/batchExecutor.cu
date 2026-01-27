@@ -137,14 +137,11 @@ void BatchExecutor::Simulate(const size_t batchSize, curandState* randomStates, 
     const auto stateCount = batchSize;
     const auto totalStates = threadsPerState * stateCount;
     //we can only fit about 6 states in a block at once, due to big shm size(totalShm / SharedMemorySize)
-    //for testing we will try 4
-    constexpr auto statesPerBlock = 4;
-    constexpr auto blockSize = statesPerBlock * threadsPerState;
+    const auto blockSize = statesPerBlock_ * threadsPerState;
     const auto gridSize = (totalStates + blockSize - 1) / blockSize;
-    constexpr  auto shmSize = statesPerBlock * SharedMemorySize;
+    const auto shmSize = statesPerBlock_ * SharedMemorySize;
     SimulateKernel<<<gridSize, blockSize, shmSize>>>(batchSize, randomStates, r_batch.self_.get(), r_actions.self_.get(), r_results.self_.get());
     KERNEL_CHECK();
-    CUDA_CHECK(cudaDeviceSynchronize());
     h_results.CopyFromGpu(r_results);
 }
 

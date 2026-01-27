@@ -3,16 +3,14 @@
 //
 
 #include "tocpuwb/mcts.hpp"
+
+#include <chrono>
 #include <limits>
 #include <cmath>
+#include <ranges>
 
-MctsTocpuwb::MctsTocpuwb(const float c, const int leafParallelizationFactor, const int timePerMove, MctsStorage *storage)
-    : c_(c), batchExecutor_(leafParallelizationFactor), storage_(storage), timeLimitSeconds_(timePerMove) {
-    if (leafParallelizationFactor == 32) {
-        precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_32;
-    } else {
-        precomputedIterations_ = PRECOMPUTED_ITERATIONS_PER_SECOND_FOR_LEAF_8;
-    }
+MctsTocpuwb::MctsTocpuwb(const float c, const int lpf, const int spb, const int ipm, const int tpm, MctsStorage *storage)
+    : c_(c), batchExecutor_(lpf, spb), storage_(storage), timeLimitSeconds_(tpm), iterationsPerMove_(ipm) {
     root_ = nullptr;
     if (storage != nullptr) {
         try {
@@ -55,18 +53,26 @@ void MctsTocpuwb::Learn(MctsTocpuwbNode *root) {
 GameResult MctsTocpuwb::FindBestMove(GameSequence *game) {
     auto node = root_;
 
-    auto didLearn = false;
-
     for (auto j = 0; j < game->history_.size() - 1; ++j) {
 
-        if (node->childrenCount_ == 0 || timeLimitSeconds_ > 0) {
-            const auto tl = timeLimitSeconds_ == 0 ? 4 : timeLimitSeconds_;
-            for (auto iter = 0; iter < (tl * precomputedIterations_ / 2); ++iter) {
-                Learn(node);
+        //we can use the cached state in order to skip most of the "selection" phase, which is only in fact useless
+        //work repetition
+        if (lastGameAccessCache_.contains(game)) {
+            node = lastGameAccessCache_[game];
+            auto foundCachedState = false;
+            for (int i = game->history_.size() - 1; i >= 0; --i) {
+                if (game->history_[i] == node->state_) {
+                    j = i;
+                    foundCachedState = true;
+                    break;
+                }
             }
-            didLearn = true;
+            if (!foundCachedState) throw std::logic_error("Caching inconsistency");
         }
 
+        if (node->childrenCount_ == 0) {
+            Learn(node);
+        }
         if (node->childrenCount_ == 0) {
             //children are not created only if they do not exist, only then does the game end
             //although here it will not happen, but a precaution
@@ -93,10 +99,19 @@ GameResult MctsTocpuwb::FindBestMove(GameSequence *game) {
     }
 
     if (node->childrenCount_ == 0 || timeLimitSeconds_ > 0) {
-        const auto tl = timeLimitSeconds_ == 0 ? 4 : timeLimitSeconds_;
-        auto maxIterations = didLearn ? (tl * precomputedIterations_ / 2) : tl * precomputedIterations_;
-        for (auto iter = 0; iter < maxIterations; ++iter) {
-            Learn(node);
+        if (iterationsPerMove_ > 0) {
+            for (auto i = 0; i < iterationsPerMove_; i++) {
+                Learn(node);
+            }
+        }
+        else {
+            using Clock = std::chrono::high_resolution_clock;
+            auto start = Clock::now();
+            auto end = start + std::chrono::duration<double>(timeLimitSeconds_);
+
+            while (Clock::now() < end) {
+                Learn(node);
+            }
         }
     }
     if (node->childrenCount_ == 0) {
@@ -108,7 +123,7 @@ GameResult MctsTocpuwb::FindBestMove(GameSequence *game) {
         return GameResult{true, res};
     }
 
-    const MctsTocpuwbNode* childWithHighestUcb = nullptr;
+    MctsTocpuwbNode* childWithHighestUcb = nullptr;
     auto highestUcb = std::numeric_limits<float>::lowest();
     for (int i = 0; i < node->childrenCount_; i++) {
         const auto child = &node->children_[i];
@@ -122,6 +137,10 @@ GameResult MctsTocpuwb::FindBestMove(GameSequence *game) {
             childWithHighestUcb = child;
         }
     }
+
+    //caching the last position in a game in order to save the repeated selection execution
+    lastGameAccessCache_[game] = childWithHighestUcb;
+
     game->history_.push_back(childWithHighestUcb->state_);
     return GameResult{false, 0};
 }
