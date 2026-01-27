@@ -46,5 +46,5 @@ Dodalem mozliwosc zapisu do bazy danych drzewa, przez co jest ono coraz madrzejs
 
 Dokumentacja programu mamy 3 opcje wywolania zawsze mozemy podac c i leaf parallelization factor czyli parametry do mcts'a:
 1. human - gramy z botem, mozemy podac ile czasu ma bot t i z jakies bazy danych d korzystac
-2. mcts - bot gra z botem, t1 i d1 to parametry dla bialego a t2 i d2 dla czarnego
+2. bot - bot gra z botem, t1 i d1 to parametry dla bialego a t2 i d2 dla czarnego
 3. learn - podajemy d i iterations i wtedy mcts wykona sie iterations razy i zapisze to co przeanalizowal zgodnie z ucb do db

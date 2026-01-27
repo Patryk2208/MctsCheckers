@@ -8,12 +8,12 @@
 #include <cmath>
 #include <CLI/CLI.hpp>
 
-#include "../include/gameplay.hpp"
+#include "gameplay.hpp"
 #include "tocpuwb/serialization.hpp"
 
 int main(int argc, char** argv) {
     //FIXED bug1: 0x200C3 || 0x40000000 || 0x10480000 || 0x0 || 0x0, queen jumps over its pawn
-    //bug2: differentiate between final position in selection and won position
+    //FIXED bug2: differentiate between final position in selection and won position
 
     CLI::App app{"Mcts for Checkers"};
 
